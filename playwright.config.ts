@@ -17,6 +17,18 @@ export default defineConfig({
   // that kind of parallel load can genuinely take a while, independent of
   // any app-level bug.
   timeout: 45_000,
+  // Separate from the per-test timeout above: this is the default budget
+  // each individual `expect(...).toBeVisible()` etc. gets (Playwright's own
+  // default is 5s). Confirmed too tight here — a full local run (8 workers,
+  // each a real Chromium + camera pipeline) showed every post-save
+  // assertion failing at exactly "Timeout: 5000ms" while the surrounding
+  // test still had 35+s of its overall budget left, i.e. the app was
+  // working, just slower than 5s to re-render under that much parallel CPU
+  // contention. Bumping the per-test timeout earlier didn't touch this
+  // separate, shorter default — that was the actual gap.
+  expect: {
+    timeout: 10_000,
+  },
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'retain-on-failure',

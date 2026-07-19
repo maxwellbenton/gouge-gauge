@@ -99,7 +99,25 @@ price-capture test fail at the same "Saved heading never appears" point the
 first time this actually ran against a browser. The helper waits for the
 "+ Add a new store" link to reappear (StorePicker only returns to that view
 in the same update that calls `onChange`) before letting a test continue —
-a real synchronization point, not a fixed sleep.
+a real synchronization point, not a fixed sleep. Worth keeping regardless of
+the timeout note below: it's a real latent race, just not the whole story.
+
+## Known trade-off: the default 5s assertion timeout is tight under load
+
+A second full local run (after the fix above) still failed the same way —
+but this time every failure said `Timeout: 5000ms`, while the surrounding
+test had 35+ of its 45s budget left unused. That's a different, narrower
+problem: Playwright's default timeout for an individual
+`expect(...).toBeVisible()` call is 5s, separate from the overall per-test
+`timeout` — bumping the latter (see above) didn't touch the former. Under
+heavy parallel load (this suite launches a real Chromium + fake camera
+device per worker, and `real-photos/` alone forces five extra browser
+processes — see below), a save-and-re-render can genuinely take longer than
+5s without anything being wrong; the app was working, just slower than the
+default assertion budget allowed for. `playwright.config.ts` now sets
+`expect.timeout: 10_000` globally to give that headroom. If it's still
+tight on a given machine, `--workers=N` (lower than the default) trades
+speed for headroom more directly than raising the timeout further.
 
 ## Repo size
 
