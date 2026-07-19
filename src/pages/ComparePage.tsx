@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { AppShell } from '../components/AppShell'
 import { PriceComparison } from '../components/PriceComparison'
-import { listProductsWithBestPrice, type Product } from '../lib/db'
+import { effectivePrice, listProductsWithBestPrice, type Product } from '../lib/db'
 import formStyles from '../components/Form.module.css'
 import styles from './ComparePage.module.css'
 
@@ -42,7 +42,9 @@ export function ComparePage() {
                       : `${storeCount} ${storeCount === 1 ? 'store' : 'stores'}${bestEntry ? ` · best at ${bestEntry.store.name}` : ''}`}
                   </div>
                 </div>
-                {bestEntry && <div className={styles.itemPrice}>${bestEntry.price.toFixed(2)}</div>}
+                {bestEntry && (
+                  <div className={styles.itemPrice}>${effectivePrice(bestEntry).toFixed(2)}</div>
+                )}
               </button>
             </li>
           ))}

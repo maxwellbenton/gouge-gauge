@@ -78,3 +78,28 @@
   font-size: 13px;
   margin: -8px 0 14px;
 }
+
+.checkboxRow {
+  margin-bottom: 14px;
+}
+
+.checkboxRow label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+.checkboxRow input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.inlinePreview {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 4px 0 0;
+}

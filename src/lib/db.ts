@@ -33,12 +33,21 @@ export interface PriceEntry {
   id: number
   productId: number
   storeId: number
-  /** Sticker/shelf price actually paid, in dollars. */
+  /**
+   * Price actually paid. For a bulk/multi-buy deal (bulkQty set), this is
+   * the *total* for the deal — e.g. price: 10, bulkQty: 3 for "3 for $10"
+   * — not the per-item price. See `effectivePrice()` in lib/unitPrice.ts
+   * for the per-item figure everything else (ranking, unit price) uses.
+   */
   price: number
   isSale: boolean
+  /** Sale entries with a past saleEndsAt are excluded from comparisons by
+   * default (see `latestPerStore` below) rather than treated as the
+   * store's current price. */
   saleEndsAt?: number
-  /** Free-text bulk/deal label, e.g. "3 for $10". Effective unit pricing lands in M3. */
-  bulkQty?: string
+  /** Item count for a bulk/multi-buy deal, e.g. 3 for "3 for $10", or 2 for
+   * a BOGO logged as "pay for 1, get 2" (price: single-item price, bulkQty: 2). */
+  bulkQty?: number
   capturedAt: number
   source: 'manual' | 'ocr'
 }
@@ -143,9 +152,25 @@ export async function listStoresWithCounts(): Promise<StoreWithCount[]> {
 // standing in an aisle actually wants to compare — full price history is a
 // later concern (M3 sale tracking).
 
+/** The per-item price a shopper actually compares across stores. For a
+ * bulk/multi-buy deal, `price` is the deal total (see the PriceEntry
+ * comment), so this divides it out; otherwise it's just `price` itself. */
+export function effectivePrice(entry: Pick<PriceEntry, 'price' | 'bulkQty'>): number {
+  return entry.bulkQty && entry.bulkQty > 1 ? entry.price / entry.bulkQty : entry.price
+}
+
+/** A sale entry whose window has closed shouldn't be treated as the
+ * store's current price going forward — see the M3 exit criteria in
+ * docs/ROADMAP.md ("can exclude expired sales from default comparisons"). */
+function isExpiredSale(entry: PriceEntry, now: number): boolean {
+  return entry.isSale && entry.saleEndsAt !== undefined && entry.saleEndsAt < now
+}
+
 function latestPerStore(entries: PriceEntry[]): PriceEntry[] {
+  const now = Date.now()
+  const eligible = entries.filter((entry) => !isExpiredSale(entry, now))
   const latestByStore = new Map<number, PriceEntry>()
-  for (const entry of entries) {
+  for (const entry of eligible) {
     const existing = latestByStore.get(entry.storeId)
     if (!existing || entry.capturedAt > existing.capturedAt) {
       latestByStore.set(entry.storeId, entry)
@@ -208,7 +233,7 @@ export async function listProductsWithBestPrice(): Promise<ProductSummary[]> {
         return store ? [{ ...entry, product, store }] : []
       })
       const bestEntry = enriched.reduce<EnrichedPriceEntry | null>(
-        (best, entry) => (!best || entry.price < best.price ? entry : best),
+        (best, entry) => (!best || effectivePrice(entry) < effectivePrice(best) ? entry : best),
         null,
       )
       return { product, storeCount: enriched.length, bestEntry }

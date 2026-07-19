@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   SIZE_UNITS,
+  effectivePrice,
   listLatestPriceEntriesForProduct,
   updateProductSize,
   type Product,
@@ -46,12 +47,18 @@ export function PriceComparison({
   // remount.
   const currentProduct = entries[0].product
 
+  // Rank (and compare "cheapest") by the per-item price, not the raw
+  // `price` field — for a bulk/multi-buy deal, `price` is the deal total,
+  // which isn't what a shopper is actually comparing across stores.
   const ranked = entries
-    .map((entry) => ({ entry, unitPrice: computeUnitPrice(entry.price, currentProduct) }))
-    .sort((a, b) => (a.unitPrice?.value ?? a.entry.price) - (b.unitPrice?.value ?? b.entry.price))
+    .map((entry) => {
+      const perItemPrice = effectivePrice(entry)
+      return { entry, perItemPrice, unitPrice: computeUnitPrice(perItemPrice, currentProduct) }
+    })
+    .sort((a, b) => (a.unitPrice?.value ?? a.perItemPrice) - (b.unitPrice?.value ?? b.perItemPrice))
 
-  const cheapestPrice = ranked[0].entry.price
-  const showCheapestBadge = ranked.some((r) => r.entry.price !== cheapestPrice)
+  const cheapestPerItemPrice = ranked[0].perItemPrice
+  const showCheapestBadge = ranked.some((r) => r.perItemPrice !== cheapestPerItemPrice)
 
   const handleAddSize = async () => {
     const value = Number(sizeValue)
@@ -70,7 +77,7 @@ export function PriceComparison({
         {ranked.length === 1 ? 'Only price on file' : `Known prices — ${ranked.length} stores`}
       </h3>
       <ul className={styles.list}>
-        {ranked.map(({ entry, unitPrice }, i) => (
+        {ranked.map(({ entry, perItemPrice, unitPrice }, i) => (
           <li
             key={entry.id}
             className={
@@ -83,11 +90,27 @@ export function PriceComparison({
               <div className={styles.itemName}>
                 {entry.store.name}
                 {i === 0 && showCheapestBadge && <span className={styles.badge}>Cheapest</span>}
+                {entry.isSale && (
+                  <span className={`${styles.badge} ${styles.badgeSale}`}>Sale</span>
+                )}
               </div>
-              <div className={styles.itemMeta}>{formatRelativeTime(entry.capturedAt)}</div>
+              <div className={styles.itemMeta}>
+                {formatRelativeTime(entry.capturedAt)}
+                {entry.isSale &&
+                  entry.saleEndsAt !== undefined &&
+                  ` · ends ${new Date(entry.saleEndsAt).toLocaleDateString()}`}
+              </div>
             </div>
             <div className={styles.itemPriceWrap}>
-              <div className={styles.itemPrice}>${entry.price.toFixed(2)}</div>
+              <div className={styles.itemPrice}>
+                ${perItemPrice.toFixed(2)}
+                {entry.bulkQty ? ' each' : ''}
+              </div>
+              {entry.bulkQty && (
+                <div className={styles.itemDealNote}>
+                  {entry.bulkQty} for ${entry.price.toFixed(2)}
+                </div>
+              )}
               {unitPrice && <div className={styles.itemUnitPrice}>{unitPrice.label}</div>}
             </div>
           </li>

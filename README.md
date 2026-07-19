@@ -7,7 +7,7 @@
 
 ## Status
 
-M0, M1, and M2 done. You can scan a barcode (camera or manual entry), log a price against a store, and see it saved — all stored locally in IndexedDB, no backend yet. Scanning a barcode you've already logged immediately shows every store's latest price for it, ranked (unit price where a size is on file), cheapest highlighted — both inline on the Scan flow and via the standalone Compare tab, which lists every logged product with its best known price. Lists (M4) is still a placeholder. See the roadmap for what's next.
+M0–M3 done. You can scan a barcode (camera or manual entry), log a price against a store — including sale prices and bulk/multi-buy deals ("3 for $10", BOGO) — and see it saved, all stored locally in IndexedDB, no backend yet. Scanning a barcode you've already logged immediately shows every store's latest price for it, ranked by effective per-item price (unit price where a size is on file), cheapest highlighted, sale/deal badges shown — both inline on the Scan flow and via the standalone Compare tab, which lists every logged product with its best known price. Expired sales drop out of comparisons automatically rather than being treated as a store's current price. Lists (M4) is still a placeholder. See the roadmap for what's next.
 
 ## Development
 

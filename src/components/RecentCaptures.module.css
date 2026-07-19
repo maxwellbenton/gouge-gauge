@@ -30,6 +30,19 @@
   text-overflow: ellipsis;
 }
 
+.tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #b45309;
+  background: color-mix(in srgb, #b45309 16%, transparent);
+  border-radius: 999px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
 .itemMeta {
   font-size: 12px;
   color: var(--text-muted);

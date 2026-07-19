@@ -13,6 +13,7 @@ import {
   createProduct,
   createStore,
   createPriceEntry,
+  effectivePrice,
   getProductByBarcode,
   listRecentPriceEntries,
   listStoresWithCounts,
@@ -127,6 +128,109 @@ async function main() {
   const neverPricedSummary = summaries.find((s) => s.product.id === neverPricedId)
   assert.equal(neverPricedSummary?.storeCount, 0)
   assert.equal(neverPricedSummary?.bestEntry, null)
+
+  // 11. M3: bulk/BOGO deals and time-limited sales — the exit-criteria
+  // scenario ("log a BOGO deal and a time-limited sale price, see both
+  // reflected correctly in comparisons").
+  const widgetId = await createProduct({ barcode: '555000111222', name: 'Widget' })
+  const discountMartId = await createStore({ name: 'Discount Mart' })
+  const regularStoreId = await createStore({ name: 'Regular Store' })
+  const saleStoreId = await createStore({ name: 'Sale Store' })
+  const oldSaleStoreId = await createStore({ name: 'Old Sale Store' })
+  const now = Date.now()
+
+  // BOGO at Discount Mart: pay $5 for one, get a second free — logged as
+  // price: 5 (what was actually paid), bulkQty: 2 (items received).
+  await createPriceEntry({
+    productId: widgetId,
+    storeId: discountMartId,
+    price: 5,
+    bulkQty: 2,
+    isSale: false,
+    source: 'manual',
+  })
+
+  // Regular Store: a plain $3 price, then — more recently — an *expired*
+  // sale. The expired sale shouldn't be treated as this store's current
+  // price; the older, still-valid $3 should win instead.
+  await createPriceEntry({
+    productId: widgetId,
+    storeId: regularStoreId,
+    price: 3,
+    isSale: false,
+    source: 'manual',
+    capturedAt: now - 60_000,
+  })
+  await createPriceEntry({
+    productId: widgetId,
+    storeId: regularStoreId,
+    price: 1.5,
+    isSale: true,
+    saleEndsAt: now - 1_000,
+    source: 'manual',
+    capturedAt: now - 30_000,
+  })
+
+  // Sale Store: an *active* time-limited sale, cheaper than everything else.
+  await createPriceEntry({
+    productId: widgetId,
+    storeId: saleStoreId,
+    price: 2,
+    isSale: true,
+    saleEndsAt: now + 86_400_000,
+    source: 'manual',
+  })
+
+  // Old Sale Store: its *only* entry is an expired sale — it should drop
+  // out of the comparison entirely rather than show a stale deal price.
+  await createPriceEntry({
+    productId: widgetId,
+    storeId: oldSaleStoreId,
+    price: 1,
+    isSale: true,
+    saleEndsAt: now - 1_000,
+    source: 'manual',
+  })
+
+  const widgetComparison = await listLatestPriceEntriesForProduct(widgetId)
+  const widgetByStore = new Map(widgetComparison.map((e) => [e.store.name, e]))
+
+  assert.equal(widgetComparison.length, 3, 'the expired-only store should be excluded entirely')
+  assert.equal(widgetByStore.has('Old Sale Store'), false)
+
+  const bogoEntry = widgetByStore.get('Discount Mart')
+  assert.ok(bogoEntry, 'BOGO entry should be present')
+  assert.equal(bogoEntry!.price, 5, 'raw price is the deal total, not the per-item price')
+  assert.equal(bogoEntry!.bulkQty, 2)
+  assert.equal(effectivePrice(bogoEntry!), 2.5, 'BOGO effective price should be $5 / 2 items')
+
+  const regularEntry = widgetByStore.get('Regular Store')
+  assert.ok(regularEntry, 'Regular Store should fall back to its non-expired price')
+  assert.equal(regularEntry!.price, 3, 'the expired sale should not override the still-valid $3 price')
+  assert.equal(effectivePrice(regularEntry!), 3)
+
+  const saleEntry = widgetByStore.get('Sale Store')
+  assert.ok(saleEntry, 'active sale entry should be present')
+  assert.equal(effectivePrice(saleEntry!), 2)
+
+  // Ranked by effective price: Sale Store ($2) < Discount Mart BOGO ($2.50) < Regular Store ($3).
+  const rankedByEffectivePrice = [...widgetComparison].sort(
+    (a, b) => effectivePrice(a) - effectivePrice(b),
+  )
+  assert.deepEqual(
+    rankedByEffectivePrice.map((e) => e.store.name),
+    ['Sale Store', 'Discount Mart', 'Regular Store'],
+  )
+
+  const widgetSummaries = await listProductsWithBestPrice()
+  const widgetSummary = widgetSummaries.find((s) => s.product.id === widgetId)
+  assert.equal(widgetSummary?.storeCount, 3, 'the expired-only store should not count toward storeCount either')
+  assert.equal(widgetSummary?.bestEntry?.store.name, 'Sale Store', 'best price should account for the active sale')
+  assert.equal(
+    widgetSummary?.bestEntry && effectivePrice(widgetSummary.bestEntry),
+    2,
+    'best price should be the effective (per-item) price, not a raw deal total',
+  )
 
   console.log('✓ smoke test passed: capture, lookup, retrieval, and cross-store comparison all work as expected')
 }

@@ -62,6 +62,27 @@ strings, since manual entry doesn't decode anything; it just stores
 whatever's typed as the product's barcode key. That sidesteps the shared
 fake-camera-fixture trade-off below entirely for this file.
 
+## Sale and bulk deals (`sale-bulk.spec.ts`)
+
+Covers M3's exit criteria directly: log a BOGO deal (quantity 2, total
+price — the form relabels "Price" to "Total price for the deal" and shows
+a live "= $X.XX each" preview) at one store, a time-limited sale at
+another, then confirm the Compare tab ranks both correctly by *effective*
+per-item price (not the raw deal total), shows the cheaper one as
+"Cheapest," and shows a "Sale" badge with an end date. Also asserts the
+BOGO's effective price is already visible on the second store's price-entry
+screen *before* that capture is saved — the same "surfaces prior prices
+immediately" behavior from M2, now correctly accounting for deal pricing.
+Like `compare.spec.ts`, it never touches the camera — everything goes
+through manual entry.
+
+Expired-sale exclusion (a sale entry whose window has closed shouldn't
+count as a store's current price) is covered in `scripts/smoke-test-db.ts`
+instead of here, since it just needs direct data-layer assertions rather
+than driving the UI — see step 11 there for the full scenario (an
+expired-only store dropping out of the comparison entirely, and a store
+reverting to its last valid price once a newer sale on top of it expires).
+
 ## Real product photos (`e2e/real-photos/`)
 
 `scan.spec.ts` uses one synthetic, easy-to-read barcode. `e2e/real-photos/`

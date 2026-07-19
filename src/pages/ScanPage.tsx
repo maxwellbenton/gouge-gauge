@@ -12,7 +12,7 @@ type Step =
   | { kind: 'scanning' }
   | { kind: 'need-product'; barcode: string }
   | { kind: 'price-entry'; product: Product }
-  | { kind: 'saved'; product: Product; storeName: string; price: number }
+  | { kind: 'saved'; product: Product; storeName: string; price: number; bulkQty?: number }
 
 export function ScanPage() {
   const [step, setStep] = useState<Step>({ kind: 'scanning' })
@@ -31,7 +31,11 @@ export function ScanPage() {
     setStep({ kind: 'price-entry', product })
   }
 
-  const handlePriceSaved = async (storeId: number, price: number) => {
+  const handlePriceSaved = async (
+    storeId: number,
+    price: number,
+    opts?: { bulkQty?: number },
+  ) => {
     if (step.kind !== 'price-entry') return
     const product = step.product
     // The price entry is already committed by this point — this lookup is
@@ -45,7 +49,7 @@ export function ScanPage() {
     } catch (err) {
       console.error('Saved the price entry, but failed to look up the store name', err)
     }
-    setStep({ kind: 'saved', product, storeName, price })
+    setStep({ kind: 'saved', product, storeName, price, bulkQty: opts?.bulkQty })
   }
 
   const reset = () => setStep({ kind: 'scanning' })
@@ -82,6 +86,11 @@ export function ScanPage() {
           <p>
             {step.product.name} — ${step.price.toFixed(2)} at {step.storeName}
           </p>
+          {step.bulkQty && (
+            <p className={formStyles.hint}>
+              {step.bulkQty} for ${step.price.toFixed(2)} — ${(step.price / step.bulkQty).toFixed(2)} each
+            </p>
+          )}
           <button type="button" className={formStyles.button} onClick={reset}>
             Scan another
           </button>
