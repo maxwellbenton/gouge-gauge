@@ -43,6 +43,25 @@ spinning up separate browser launches. Practically:
   moment — the fix would be adding an explicit small wait before the manual
   click, or restructuring so the camera doesn't auto-start on mount.
 
+## Compare tab / cross-store comparison (`compare.spec.ts`)
+
+M2's comparison view is covered two ways:
+
+- `scan.spec.ts`'s known-barcode test asserts the comparison appears
+  *inline on the Scan flow* — the actual exit-criteria scenario (scan a
+  barcode already logged at a cheaper store, see that immediately).
+- `compare.spec.ts` covers the standalone Compare tab: browsing all logged
+  products with a best-price summary, drilling into one for the full
+  ranked-by-price list (cheapest badge, unit price per store), and adding a
+  size after the fact to a product that didn't have one, confirming the
+  unit price appears live via Dexie's `useLiveQuery` with no reload.
+
+`compare.spec.ts` never touches the camera at all — every barcode in it is
+typed through "Enter barcode manually" using arbitrary, non-fixture
+strings, since manual entry doesn't decode anything; it just stores
+whatever's typed as the product's barcode key. That sidesteps the shared
+fake-camera-fixture trade-off below entirely for this file.
+
 ## Real product photos (`e2e/real-photos/`)
 
 `scan.spec.ts` uses one synthetic, easy-to-read barcode. `e2e/real-photos/`
