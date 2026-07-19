@@ -25,7 +25,24 @@ export function useBarcodeScanner(onDetect: (code: string) => void) {
     onDetectRef.current = onDetect
   }, [onDetect])
 
+  // `start()` does real async work (dynamic import + getUserMedia
+  // negotiation) before it has anything to stop. If `stop()` is called
+  // while that's still in flight — e.g. the user flips to manual entry
+  // right after the camera view mounts — the awaits inside `start()` were
+  // still resolving *after* stop() had already run, and had nothing to
+  // check against: it would happily install fresh `controls` and flip
+  // back to "scanning" as if stop() had never happened, leaving a live
+  // decode loop running behind whatever UI replaced the camera view. With
+  // a fixed fake-camera fixture in e2e tests that loop keeps feeding the
+  // same already-known barcode, so it would eventually fire onDetect and
+  // yank the app out from under whatever the user (or test) was doing —
+  // manual entry's "Look up price" button, for instance, would get
+  // unmounted mid-click. This token invalidates any start() that was
+  // superseded by a stop() before it finished negotiating.
+  const startIdRef = useRef(0)
+
   const stop = useCallback(() => {
+    startIdRef.current += 1
     controlsRef.current?.stop()
     controlsRef.current = null
     setStatus('idle')
@@ -35,6 +52,7 @@ export function useBarcodeScanner(onDetect: (code: string) => void) {
     if (!videoRef.current) return
     setError(null)
     setStatus('starting')
+    const startId = (startIdRef.current += 1)
     try {
       const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([
         import('@zxing/browser'),
@@ -69,9 +87,17 @@ export function useBarcodeScanner(onDetect: (code: string) => void) {
           // that fires continuously during normal scanning, so it's ignored.
         },
       )
+      if (startId !== startIdRef.current) {
+        // Superseded by a stop() (or another start()) while we were still
+        // negotiating the camera — discard these controls immediately
+        // instead of silently re-arming a scanner nobody asked for.
+        controls.stop()
+        return
+      }
       controlsRef.current = controls
       setStatus('scanning')
     } catch (err) {
+      if (startId !== startIdRef.current) return
       setStatus('error')
       setError(
         err instanceof Error
@@ -82,9 +108,10 @@ export function useBarcodeScanner(onDetect: (code: string) => void) {
   }, [])
 
   useEffect(() => {
-    return () => {
-      controlsRef.current?.stop()
-    }
+    return () => stop()
+    // stop() is stable (useCallback with no deps) — this just guarantees
+    // the scanner (and any in-flight start()) is torn down on unmount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return { videoRef, status, error, start, stop }

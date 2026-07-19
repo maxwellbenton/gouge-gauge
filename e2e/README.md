@@ -124,6 +124,37 @@ deterministic failure that doesn't budge when you add headroom is a real
 bug, not a timing issue — the console-error logging from step 3 is what
 actually should've been reached for first.
 
+## Postmortem: "Look up price" got detached mid-click on the third scan cycle
+
+M2 added a third scan/detect cycle to the existing manual-entry test (to
+verify the comparison view after two stores have prices logged). It failed
+— but only that new third cycle, not the first two — with `locator.click`
+timing out after "element was detached from the DOM, retrying".
+
+The cause was a real race in `useBarcodeScanner`, not the test: `start()`
+does async work (dynamic `@zxing` import + `getUserMedia` negotiation)
+before it has any `controls` to hand back. If `stop()` was called (e.g. the
+user/test clicks "Enter barcode manually") while that was still in flight,
+`stop()` had nothing to stop yet — and when `start()`'s awaits *later*
+resolved, it just installed the fresh `controls` and flipped to "scanning"
+as if `stop()` had never happened. Camera view or not, that decode loop is
+now live, and the fake-camera fixture keeps feeding it the same barcode, so
+it eventually fires `onDetect` and yanks the app to the price-entry step —
+unmounting whatever manual-entry UI was mid-click.
+
+This didn't show up on the test's first two scan cycles because the
+`@zxing` chunk hadn't been fetched yet, so `start()`'s import+negotiation
+was slow enough that the manual-entry click always won outright. By the
+third cycle the chunk (and likely the camera permission/negotiation) was
+already warm, so `start()` resolved fast enough to lose that race instead —
+a good example of why "passes reliably" isn't the same as "race-free": the
+timing just hadn't been unfavorable yet.
+
+Fixed with a token in `useBarcodeScanner`: `stop()` bumps it, `start()`
+captures it before the awaits and checks it's still current afterward,
+discarding (and immediately stopping) any `controls` it gets back if a
+`stop()` (or newer `start()`) superseded it in the meantime.
+
 ## Repo size
 
 The committed video fixtures add up: `barcode.y4m` (~900KB) plus five
