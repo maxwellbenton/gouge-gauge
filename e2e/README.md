@@ -193,6 +193,32 @@ different, identical — that's the signal to stop reasoning about the code
 and go get real evidence (logging, a trace) instead of trying another
 plausible-sounding fix.
 
+**That fix worked** — the manual-entry test passed on the next run — but it
+caused a new regression: all four real-photo decode tests, which normally
+decode in ~3s, started timing out at the full 20s "waiting for the camera"
+budget instead. The lifecycle logging (still in place) showed why: the fix
+stopped the phantom scanner from *acting on* a detection, but it still let
+the phantom call `getUserMedia`/`decodeFromConstraints` in the first place
+— so on every mount, two concurrent camera negotiations were still opened
+against the same fake-camera device (visible in the logs as "It was not
+possible to play the video: AbortError... interrupted by a new load
+request"). That was apparently harmless for the easy, from-frame-one
+synthetic barcode, but measurably hurt decode reliability on the harder,
+genuinely-imperfect real photos, which need more frames/attempts to
+resolve.
+
+Fix: check the supersession token *before* calling `decodeFromConstraints`
+too, not only inside its result callback and after its promise resolves.
+Because React StrictMode's cleanup-then-remount for this effect runs
+synchronously, by the time the (often already-cached, near-instant)
+`@zxing` dynamic imports resolve, a phantom call's token has typically
+already been bumped past — so this catches it before `getUserMedia` is
+ever called, instead of opening a second real camera stream and discarding
+its result afterward. All three checks (before `getUserMedia`, inside the
+result callback, after negotiation resolves) stay in place as
+defense-in-depth for genuine start()/stop() sequences that aren't just the
+StrictMode dev-mode artifact.
+
 ## Repo size
 
 The committed video fixtures add up: `barcode.y4m` (~900KB) plus five

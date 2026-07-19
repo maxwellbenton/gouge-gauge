@@ -78,6 +78,23 @@ export function useBarcodeScanner(onDetect: (code: string) => void) {
         import('@zxing/browser'),
         import('@zxing/library'),
       ])
+      if (startId !== startIdRef.current) {
+        // Superseded before we even requested the camera — the common
+        // case in dev, since React StrictMode's cleanup-then-remount for
+        // this effect runs synchronously, so by the time these (possibly
+        // cached, near-instant) dynamic imports resolve, a phantom call's
+        // token has typically already been bumped past by the real one.
+        // Skip getUserMedia entirely here rather than opening a second
+        // concurrent camera stream and discarding its result later: two
+        // concurrent decodeFromConstraints calls against the same
+        // fake-camera device measurably hurt decode reliability on the
+        // harder real-photo e2e fixtures (four tests that normally decode
+        // in ~3s each started timing out at 20s) — presumably contention
+        // between two simultaneous getUserMedia/decode-loop instances
+        // against one simulated device, not just wasted CPU.
+        log(`start() id ${startId} superseded before requesting the camera — skipping getUserMedia`)
+        return
+      }
       // Product barcodes only — skips QR/Aztec/PDF417 decoding work we don't
       // need and reduces false positives from unrelated codes in frame.
       const hints = new Map([
