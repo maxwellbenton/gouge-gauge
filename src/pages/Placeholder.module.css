@@ -1,0 +1,22 @@
+.card {
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  background: var(--surface);
+}
+
+.card p:last-child {
+  margin-bottom: 0;
+}
+
+.milestone {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 999px;
+  padding: 4px 10px;
+  margin-bottom: 12px;
+}

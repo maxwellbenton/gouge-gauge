@@ -1,0 +1,17 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c084fc"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <g>
+    <!-- price tag outline -->
+    <path d="M148 168 C148 154.7 158.7 144 172 144 L296 144 C302.4 144 308.5 146.5 313 151 L392 230 C396.5 234.5 399 240.6 399 247 L399 344 C399 357.3 388.3 368 375 368 L172 368 C158.7 368 148 357.3 148 344 Z"
+          fill="none" stroke="#ffffff" stroke-width="18" stroke-linejoin="round"/>
+    <circle cx="196" cy="192" r="20" fill="#ffffff"/>
+    <path d="M232 236 L340 236 M232 268 L340 268 M232 300 L308 300"
+          stroke="#ffffff" stroke-width="16" stroke-linecap="round"/>
+  </g>
+</svg>
