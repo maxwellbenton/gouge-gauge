@@ -37,8 +37,17 @@ export function PriceComparison({
     return <p className={styles.empty}>No prices logged yet for this product — you'll be first.</p>
   }
 
+  // `entries` is re-fetched (and re-joined with a fresh Product row) by
+  // useLiveQuery on every relevant Dexie change, including a size saved via
+  // the prompt below — but the `product` prop is a snapshot handed down by
+  // whoever rendered this component and doesn't update on its own. Once
+  // there's at least one entry, prefer the copy that came back with it so a
+  // same-session size edit is reflected immediately instead of requiring a
+  // remount.
+  const currentProduct = entries[0].product
+
   const ranked = entries
-    .map((entry) => ({ entry, unitPrice: computeUnitPrice(entry.price, product) }))
+    .map((entry) => ({ entry, unitPrice: computeUnitPrice(entry.price, currentProduct) }))
     .sort((a, b) => (a.unitPrice?.value ?? a.entry.price) - (b.unitPrice?.value ?? b.entry.price))
 
   const cheapestPrice = ranked[0].entry.price
@@ -85,7 +94,7 @@ export function PriceComparison({
         ))}
       </ul>
 
-      {!product.sizeValue && (
+      {!currentProduct.sizeValue && (
         <div className={styles.sizePrompt}>
           <p className={formStyles.hint}>Add a size to compare price-per-unit across stores.</p>
           <div className={formStyles.row}>
