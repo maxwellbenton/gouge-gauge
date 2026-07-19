@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import type { RealProductFixture } from '../fixtures/real-products.js'
+import { addNewStoreInline } from '../helpers.js'
 
 // Shared test bodies for the real-photo fixtures. Split into per-fixture
 // spec files (dog-treat.spec.ts etc.) rather than one file with a loop,
@@ -19,9 +20,7 @@ export function runDecodableFixtureTest(fixture: RealProductFixture) {
     await page.getByLabel('Product name').fill(fixture.productName)
     await page.getByRole('button', { name: 'Continue' }).click()
 
-    await page.getByRole('button', { name: '+ Add a new store' }).click()
-    await page.getByLabel('New store name').fill('Test Store')
-    await page.getByRole('button', { name: 'Add store' }).click()
+    await addNewStoreInline(page, 'Test Store')
     await page.getByLabel('Price').fill('9.99')
     await page.getByRole('button', { name: 'Save price' }).click()
 
@@ -61,9 +60,7 @@ export function runUndecodableFixtureTest(fixture: RealProductFixture) {
     await page.getByLabel('Product name').fill(fixture.productName)
     await page.getByRole('button', { name: 'Continue' }).click()
 
-    await page.getByRole('button', { name: '+ Add a new store' }).click()
-    await page.getByLabel('New store name').fill('Test Store')
-    await page.getByRole('button', { name: 'Add store' }).click()
+    await addNewStoreInline(page, 'Test Store')
     await page.getByLabel('Price').fill('4.50')
     await page.getByRole('button', { name: 'Save price' }).click()
 

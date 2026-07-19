@@ -10,6 +10,13 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: 'list',
+  // Default (30s) is tight for these tests: each one launches a real
+  // Chromium + fake camera device, and several run as separate workers in
+  // parallel (see e2e/README.md on why real-photos/ needs one file per
+  // fixture) — real camera negotiation plus the dynamic zxing import under
+  // that kind of parallel load can genuinely take a while, independent of
+  // any app-level bug.
+  timeout: 45_000,
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'retain-on-failure',

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { addNewStoreInline } from './helpers.js'
 
 // The barcode encoded in e2e/fixtures/barcode.y4m. ZXing reports EAN-13 codes
 // that start with 0 as UPC-A with the leading zero stripped — see
@@ -34,9 +35,7 @@ test.describe('Scan → price capture', () => {
     await page.getByLabel('Unit').selectOption('lb')
     await page.getByRole('button', { name: 'Continue' }).click()
 
-    await page.getByRole('button', { name: '+ Add a new store' }).click()
-    await page.getByLabel('New store name').fill('Tractor Supply')
-    await page.getByRole('button', { name: 'Add store' }).click()
+    await addNewStoreInline(page, 'Tractor Supply')
 
     await page.getByLabel('Price').fill('67')
     await page.getByRole('button', { name: 'Save price' }).click()
@@ -69,9 +68,7 @@ test.describe('Scan → price capture', () => {
     await page.getByLabel('Product name').fill('Blue Buffalo Chicken Dog Food')
     await page.getByRole('button', { name: 'Continue' }).click()
 
-    await page.getByRole('button', { name: '+ Add a new store' }).click()
-    await page.getByLabel('New store name').fill('Tractor Supply')
-    await page.getByRole('button', { name: 'Add store' }).click()
+    await addNewStoreInline(page, 'Tractor Supply')
     await page.getByLabel('Price').fill('67')
     await page.getByRole('button', { name: 'Save price' }).click()
     await expect(page.getByRole('heading', { name: 'Saved' })).toBeVisible()
@@ -87,9 +84,7 @@ test.describe('Scan → price capture', () => {
     await expect(page.getByLabel('Product name')).not.toBeVisible()
     await expect(page.getByText('Blue Buffalo Chicken Dog Food', { exact: false })).toBeVisible()
 
-    await page.getByRole('button', { name: '+ Add a new store' }).click()
-    await page.getByLabel('New store name').fill('PetCo')
-    await page.getByRole('button', { name: 'Add store' }).click()
+    await addNewStoreInline(page, 'PetCo')
     await page.getByLabel('Price').fill('74')
     await page.getByRole('button', { name: 'Save price' }).click()
 

@@ -83,6 +83,24 @@ suite launches a separate browser per real-photo fixture (five extra
 launches), so it's slower than `scan.spec.ts` — inherent to testing against
 distinct per-product video rather than one shared fixture.
 
+## Known trade-off: the "Add store" click races its own handler
+
+`e2e/helpers.ts` exports `addNewStoreInline()`, used everywhere a test drives
+StorePicker's inline "+ Add a new store" flow. This exists because of a real
+failure found by actually running the suite: clicking "Add store" fires an
+async handler (`createStore()` — an IndexedDB write — then `onChange(id)`),
+but Playwright's `.click()` resolves as soon as the click event dispatches,
+not once that handler finishes. Filling Price and clicking "Save price"
+immediately after "Add store" would sometimes race ahead of `onChange(id)`,
+so `storeId` was still `null` when Save ran — the app's own
+`if (!storeId) { setError(...); return }` guard then silently no-ops the
+save instead of erroring loudly, which is what made every camera/manual
+price-capture test fail at the same "Saved heading never appears" point the
+first time this actually ran against a browser. The helper waits for the
+"+ Add a new store" link to reappear (StorePicker only returns to that view
+in the same update that calls `onChange`) before letting a test continue —
+a real synchronization point, not a fixed sleep.
+
 ## Repo size
 
 The committed video fixtures add up: `barcode.y4m` (~900KB) plus five
