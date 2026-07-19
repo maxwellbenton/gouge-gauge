@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { test } from '@playwright/test'
+import { test } from '../test-fixtures.js'
 import { REAL_PRODUCT_FIXTURES } from '../fixtures/real-products.js'
 import { runDecodableFixtureTest, fakeCameraLaunchArgs } from './_shared.js'
 

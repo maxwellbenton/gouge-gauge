@@ -32,8 +32,19 @@ export function ScanPage() {
 
   const handlePriceSaved = async (storeId: number, price: number) => {
     if (step.kind !== 'price-entry') return
-    const store = await db.stores.get(storeId)
-    setStep({ kind: 'saved', product: step.product, storeName: store?.name ?? 'store', price })
+    const product = step.product
+    // The price entry is already committed by this point — this lookup is
+    // just for a friendlier confirmation message, so a failure here
+    // shouldn't leave the user stuck on the price form after a save that
+    // actually succeeded.
+    let storeName = 'store'
+    try {
+      const store = await db.stores.get(storeId)
+      if (store) storeName = store.name
+    } catch (err) {
+      console.error('Saved the price entry, but failed to look up the store name', err)
+    }
+    setStep({ kind: 'saved', product, storeName, price })
   }
 
   const reset = () => setStep({ kind: 'scanning' })

@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { expect } from '@playwright/test'
+import { test } from '../test-fixtures.js'
 import type { RealProductFixture } from '../fixtures/real-products.js'
 import { addNewStoreInline } from '../helpers.js'
 

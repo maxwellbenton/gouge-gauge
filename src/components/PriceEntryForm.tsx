@@ -39,6 +39,13 @@ export function PriceEntryForm({
         source: 'manual',
       })
       onSaved(storeId, parsedPrice)
+    } catch (err) {
+      // Without this, a failed save (IndexedDB error, quota, whatever) left
+      // the user staring at a form that silently reverted from "Saving…"
+      // back to "Save price" with no explanation — found while chasing down
+      // an e2e failure where the same thing was suspected.
+      console.error('Failed to save price entry', err)
+      setError('Could not save this price. Please try again.')
     } finally {
       setSaving(false)
     }

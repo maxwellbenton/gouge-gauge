@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { expect } from '@playwright/test'
+import { test } from './test-fixtures.js'
 import { addNewStoreInline } from './helpers.js'
 
 // The barcode encoded in e2e/fixtures/barcode.y4m. ZXing reports EAN-13 codes

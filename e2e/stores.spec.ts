@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test'
+import { expect } from '@playwright/test'
+import { test } from './test-fixtures.js'
 
 test('adding a store directly from the Stores page', async ({ page }) => {
   // Navigating straight to /stores never mounts the Scan page's camera

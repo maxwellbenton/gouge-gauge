@@ -16,11 +16,13 @@ export function NewProductForm({
   const [sizeValue, setSizeValue] = useState('')
   const [sizeUnit, setSizeUnit] = useState<SizeUnit | ''>('')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const trimmedName = name.trim()
     if (!trimmedName) return
+    setError(null)
     setSaving(true)
     try {
       const id = await createProduct({
@@ -39,6 +41,9 @@ export function NewProductForm({
         sizeUnit: sizeUnit || undefined,
         createdAt: Date.now(),
       })
+    } catch (err) {
+      console.error('Failed to save product', err)
+      setError('Could not save this product. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -98,6 +103,7 @@ export function NewProductForm({
       <p className={formStyles.hint}>
         Size helps compare price-per-unit across stores later — worth adding if you have it handy.
       </p>
+      {error && <p className={formStyles.error}>{error}</p>}
       <div className={formStyles.row}>
         <button type="button" className={formStyles.buttonSecondary} onClick={onCancel}>
           Cancel
