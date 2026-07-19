@@ -1,0 +1,52 @@
+.viewport {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  margin-bottom: 12px;
+}
+
+.video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.frame {
+  position: absolute;
+  inset: 15% 12%;
+  border: 3px solid color-mix(in srgb, var(--accent) 70%, white);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.status {
+  position: absolute;
+  bottom: 10px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #fff;
+  font-size: 13px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #d1cfd6;
+  font-size: 14px;
+  padding: 24px;
+  text-align: center;
+}
+
+.toggleRow {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}

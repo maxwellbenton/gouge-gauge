@@ -1,18 +1,80 @@
+import { useState } from 'react'
 import { AppShell } from '../components/AppShell'
+import { CameraScanner } from '../components/CameraScanner'
+import { NewProductForm } from '../components/NewProductForm'
+import { PriceEntryForm } from '../components/PriceEntryForm'
+import { RecentCaptures } from '../components/RecentCaptures'
+import { db, getProductByBarcode, type Product } from '../lib/db'
+import formStyles from '../components/Form.module.css'
 import styles from './Placeholder.module.css'
 
+type Step =
+  | { kind: 'scanning' }
+  | { kind: 'need-product'; barcode: string }
+  | { kind: 'price-entry'; product: Product }
+  | { kind: 'saved'; product: Product; storeName: string; price: number }
+
 export function ScanPage() {
+  const [step, setStep] = useState<Step>({ kind: 'scanning' })
+
+  const handleDetected = async (barcode: string) => {
+    const existing = await getProductByBarcode(barcode)
+    if (existing) {
+      setStep({ kind: 'price-entry', product: existing })
+    } else {
+      setStep({ kind: 'need-product', barcode })
+    }
+  }
+
+  const handleProductCreated = (product: Product) => {
+    setStep({ kind: 'price-entry', product })
+  }
+
+  const handlePriceSaved = async (storeId: number, price: number) => {
+    if (step.kind !== 'price-entry') return
+    const store = await db.stores.get(storeId)
+    setStep({ kind: 'saved', product: step.product, storeName: store?.name ?? 'store', price })
+  }
+
+  const reset = () => setStep({ kind: 'scanning' })
+
   return (
     <AppShell title="Scan">
-      <div className={styles.card}>
-        <span className={styles.milestone}>M1</span>
-        <p>
-          This is where barcode scanning and price entry will live: point the
-          camera at a product, confirm or correct the detected price, and save
-          it to the current store.
-        </p>
-        <p>Not built yet — this screen is a placeholder from M0 scaffolding.</p>
-      </div>
+      {step.kind === 'scanning' && (
+        <>
+          <CameraScanner onDetect={handleDetected} />
+          <h2>Recent captures</h2>
+          <RecentCaptures />
+        </>
+      )}
+
+      {step.kind === 'need-product' && (
+        <div className={styles.card}>
+          <NewProductForm
+            barcode={step.barcode}
+            onCreated={handleProductCreated}
+            onCancel={reset}
+          />
+        </div>
+      )}
+
+      {step.kind === 'price-entry' && (
+        <div className={styles.card}>
+          <PriceEntryForm product={step.product} onSaved={handlePriceSaved} onCancel={reset} />
+        </div>
+      )}
+
+      {step.kind === 'saved' && (
+        <div className={styles.card}>
+          <h2>Saved</h2>
+          <p>
+            {step.product.name} — ${step.price.toFixed(2)} at {step.storeName}
+          </p>
+          <button type="button" className={formStyles.button} onClick={reset}>
+            Scan another
+          </button>
+        </div>
+      )}
     </AppShell>
   )
 }
