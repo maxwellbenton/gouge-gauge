@@ -105,6 +105,41 @@ deletion are covered in `scripts/smoke-test-db.ts` (step 12) rather than
 here, for the same reason as expired-sale exclusion above: they're pure
 data-layer behavior that doesn't need a browser to verify.
 
+## Price OCR (`ocr.spec.ts`)
+
+Covers M5: uploading a photo prefills the Price field via real `tesseract.js`
+recognition — not a mocked/stubbed OCR result, same principle as the camera
+tests not mocking barcode detection. One test drives all three outcomes
+against the synthetic fixtures in `e2e/fixtures/ocr/` (see
+`scripts/generate-ocr-spike-fixtures.py` and `docs/OCR-SPIKE.md`):
+
+- A single clean price photo prefills the Price field automatically.
+- A photo with two prices (sale vs. regular) shows both as tappable chips
+  instead of guessing which one is right; clicking one fills the field.
+- A photo with no price shows a "couldn't find a price" message and leaves
+  whatever's already in the field untouched.
+
+It also confirms OCR only ever prefills — the test still has to click "Save
+price" itself, per the design doc's rule that OCR never auto-submits.
+
+Like `compare.spec.ts` and `sale-bulk.spec.ts`, it goes through manual
+barcode entry, no camera involvement.
+
+### Rerouting tesseract.js's CDN fetch to local files
+
+`tesseract.js` fetches its wasm core and language data lazily from the
+jsdelivr CDN by default — normal, and what happens on a real device. That's
+not something an e2e test should depend on (slow, and unreliable in any
+sandboxed/offline CI environment), so `e2e/ocr-cdn-route.ts` reroutes those
+specific requests to the local copies already present via the
+`@tesseract.js-data/eng` and `tesseract.js-core` packages in
+`node_modules` — jsdelivr's `/npm/<package>/<path>` URLs are just a mirror
+of the published npm package contents, so the local files are byte-for-byte
+what jsdelivr would have served. This uses `context.route()`, not
+`page.route()`, because tesseract.js does its fetching from inside a
+dedicated Web Worker, and only context-level routing sees worker-issued
+requests.
+
 ## Real product photos (`e2e/real-photos/`)
 
 `scan.spec.ts` uses one synthetic, easy-to-read barcode. `e2e/real-photos/`

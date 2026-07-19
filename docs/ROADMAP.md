@@ -56,13 +56,23 @@ Turn accumulated price data into action.
 
 ## M5 — Price OCR (Stretch, can run parallel to M3/M4)
 
-Enhancement layer over manual entry, not a blocker for anything else.
+Enhancement layer over manual entry, not a blocker for anything else. **Done** — see `docs/OCR-SPIKE.md` for the accuracy writeup.
 
-- Client-side OCR spike (Tesseract.js) against real shelf-tag photos to validate accuracy before committing further.
-- If viable: photo-to-price-field prefill on the entry screen, always user-confirmed before saving.
-- If not viable client-side: evaluate a cloud OCR fallback (Vision/Textract) behind the same interface.
+- Client-side OCR spike (Tesseract.js) against synthetic shelf-tag-style photos to validate accuracy before committing further.
+- Photo-to-price-field prefill on the entry screen ("Scan price from a photo"), always user-confirmed before saving — multiple detected prices show as tappable chips instead of guessing.
+- Cloud OCR fallback (Vision/Textract) not needed — client-side accuracy was good enough on the spike; revisit only if real-world shelf-tag photos prove meaningfully harder than the synthetic fixtures.
 
 **Exit criteria**: a documented accuracy spike, plus (if viable) working prefill-from-photo on the entry screen.
+
+## M5.5 — Screenshot Import (Online Shopping Sites)
+
+Idea flagged after M5: uploaded screenshots from online shopping sites (product pages, cart views) are a different OCR case from a shelf-tag photo — no barcode to key off of, and instead of one price there's usually a product name, brand, and price all visible in the same image.
+
+- Reuse `src/lib/priceOcr.ts`'s recognize-then-extract approach, but extend extraction beyond just price candidates to also pull a likely product name/brand line, since there's no barcode scan to establish the product first.
+- New entry point needed (separate from the barcode-first Scan flow) — probably an "Import from screenshot" action that goes screenshot → extracted product/price candidates → user picks/edits → matches or creates a `Product` → normal store + price entry from there.
+- Same rule as M5: OCR only ever prefills, user always confirms before anything saves.
+
+**Exit criteria**: not yet built — this is a captured idea, not started. No code, data model, or UI work has begun.
 
 ## M6 — Accounts & Sync Backend
 

@@ -1,8 +1,16 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { createPriceEntry, type Product } from '../lib/db'
 import { PriceComparison } from './PriceComparison'
 import { StorePicker } from './StorePicker'
 import formStyles from './Form.module.css'
+import type { PriceCandidate } from '../lib/priceOcr'
+
+type OcrStatus =
+  | { state: 'idle' }
+  | { state: 'reading' }
+  | { state: 'found'; candidates: PriceCandidate[] }
+  | { state: 'not-found' }
+  | { state: 'error' }
 
 export function PriceEntryForm({
   product,
@@ -21,6 +29,8 @@ export function PriceEntryForm({
   const [saleEndsAt, setSaleEndsAt] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [ocrStatus, setOcrStatus] = useState<OcrStatus>({ state: 'idle' })
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const parsedBulkQtyPreview = Number(bulkQty)
   const parsedPricePreview = Number(price)
@@ -87,6 +97,31 @@ export function PriceEntryForm({
     }
   }
 
+  const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    // Reset so picking the same file again (e.g. after a "not found" retry
+    // with the same photo) still fires onChange.
+    e.target.value = ''
+    if (!file) return
+
+    setOcrStatus({ state: 'reading' })
+    try {
+      const { recognizePriceFromImage } = await import('../lib/priceOcr')
+      const { candidates } = await recognizePriceFromImage(file)
+      if (candidates.length === 0) {
+        setOcrStatus({ state: 'not-found' })
+      } else {
+        setOcrStatus({ state: 'found', candidates })
+        // Prefill with the first candidate, but the user must still hit
+        // "Save price" — this never auto-submits (docs/DESIGN.md §5).
+        setPrice(String(candidates[0].value))
+      }
+    } catch (err) {
+      console.error('OCR failed', err)
+      setOcrStatus({ state: 'error' })
+    }
+  }
+
   return (
     <form onSubmit={handleSubmit}>
       <p className={formStyles.hint}>
@@ -115,6 +150,49 @@ export function PriceEntryForm({
           />
         </div>
       )}
+
+      <div className={formStyles.ocrRow}>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={(e) => void handlePhotoSelected(e)}
+          className={formStyles.hiddenFileInput}
+          aria-label="Scan price from a photo"
+        />
+        <button
+          type="button"
+          className={formStyles.linkButton}
+          onClick={() => fileInputRef.current?.click()}
+          disabled={ocrStatus.state === 'reading'}
+        >
+          {ocrStatus.state === 'reading' ? 'Reading photo…' : 'Scan price from a photo (beta)'}
+        </button>
+        {ocrStatus.state === 'not-found' && (
+          <p className={formStyles.ocrStatus}>Couldn't find a price in that photo — enter it below.</p>
+        )}
+        {ocrStatus.state === 'error' && (
+          <p className={formStyles.ocrStatus}>Couldn't read that photo — enter the price below.</p>
+        )}
+        {ocrStatus.state === 'found' && ocrStatus.candidates.length > 1 && (
+          <>
+            <p className={formStyles.ocrStatus}>Found more than one price — tap the right one:</p>
+            <div className={formStyles.ocrCandidates}>
+              {ocrStatus.candidates.map((candidate) => (
+                <button
+                  key={candidate.value}
+                  type="button"
+                  className={formStyles.ocrChip}
+                  onClick={() => setPrice(String(candidate.value))}
+                >
+                  {candidate.raw}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
 
       <div className={formStyles.field}>
         <label htmlFor="price-input">{isBulk ? 'Total price for the deal' : 'Price'}</label>

@@ -103,3 +103,34 @@
   color: var(--text-muted);
   margin: 4px 0 0;
 }
+
+.ocrRow {
+  margin-bottom: 14px;
+}
+
+.ocrStatus {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 6px 0 0;
+}
+
+.ocrCandidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.hiddenFileInput {
+  display: none;
+}
+
+.ocrChip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 14px;
+}

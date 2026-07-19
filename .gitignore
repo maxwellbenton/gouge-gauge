@@ -14,6 +14,10 @@ dev-dist/
 /playwright/.cache/
 .fixture-tmp/
 
+# tesseract.js writes a traineddata cache to cwd when scripts/ocr-spike.ts
+# runs directly with Node (not an issue in the browser app itself)
+/*.traineddata
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
