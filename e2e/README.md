@@ -155,6 +155,44 @@ captures it before the awaits and checks it's still current afterward,
 discarding (and immediately stopping) any `controls` it gets back if a
 `stop()` (or newer `start()`) superseded it in the meantime.
 
+**That fix turned out to be real but still insufficient** — a re-run failed
+identically, same line, same 45s timeout, completely unchanged. Rather than
+guess a third time, lifecycle logging (`console.debug`, forwarded to the
+Playwright test output via a widened `e2e/test-fixtures.ts` console
+listener) was added to every `start()`/`stop()` call, token comparison, and
+`ScanPage.handleDetected` call. The next real run's console output showed
+the actual mechanism:
+
+- React StrictMode (enabled in `main.tsx`, as it should be) double-invokes
+  effects in dev: mount → cleanup → mount again. So *every* camera-view
+  mount actually calls `start()` twice — a "phantom" call that gets
+  `stop()`'d almost immediately, and the real one that survives.
+- The log ordering showed the phantom's own `decodeFromConstraints`
+  callback firing a real decode result *before its own outer `await` had
+  resolved* — ZXing's internal scan loop appears to start (and can report a
+  match) before the promise wrapping `decodeFromConstraints` settles. That
+  means the "was I superseded?" check added in the first fix — which only
+  ran *after* that `await` — was checking too late. The phantom had already
+  called `onDetect` with a real barcode by the time its own supersession
+  was detected.
+- With the fake-camera fixture showing a decodable barcode from frame one,
+  this phantom detection was firing on effectively *every* mount. It never
+  mattered for a flow with one scan/detect cycle (the real scanner's own
+  detection would fire moments later regardless), but by the third
+  scan/detect cycle in the test it was enough noise in the step-transition
+  timing to detach "Look up price" mid-click.
+
+Real fix: move the token check *inside* the decode callback itself, not
+just after the outer await — a result from a scanner whose `startId` no
+longer matches the current token gets its loop stopped and is otherwise
+discarded, live or not.
+
+Lesson on top of the earlier one: when a targeted fix based on reading the
+code doesn't change a deterministic failure *at all* — not flakier, not
+different, identical — that's the signal to stop reasoning about the code
+and go get real evidence (logging, a trace) instead of trying another
+plausible-sounding fix.
+
 ## Repo size
 
 The committed video fixtures add up: `barcode.y4m` (~900KB) plus five

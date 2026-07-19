@@ -35,18 +35,28 @@ export function useBarcodeScanner(onDetect: (code: string) => void) {
 
   // `start()` does real async work (dynamic import + getUserMedia
   // negotiation) before it has anything to stop. If `stop()` is called
-  // while that's still in flight — e.g. the user flips to manual entry
-  // right after the camera view mounts — the awaits inside `start()` were
-  // still resolving *after* stop() had already run, and had nothing to
-  // check against: it would happily install fresh `controls` and flip
-  // back to "scanning" as if stop() had never happened, leaving a live
-  // decode loop running behind whatever UI replaced the camera view. With
-  // a fixed fake-camera fixture in e2e tests that loop keeps feeding the
-  // same already-known barcode, so it would eventually fire onDetect and
-  // yank the app out from under whatever the user (or test) was doing —
-  // manual entry's "Look up price" button, for instance, would get
-  // unmounted mid-click. This token invalidates any start() that was
-  // superseded by a stop() before it finished negotiating.
+  // while that's still in flight, the awaits inside `start()` were still
+  // resolving *after* stop() had already run, with nothing to check
+  // against. This token lets any part of `start()` — including its decode
+  // callback — recognize it's been superseded by a later stop()/start().
+  //
+  // The decode callback specifically turned out to matter most: React
+  // StrictMode double-invokes effects in dev (mount → cleanup → mount
+  // again), so *every* mount actually calls `start()` twice against the
+  // same <video> element — a "phantom" call that gets stopped almost
+  // immediately, and the real one that survives. Confirmed via the
+  // logging below: the phantom's own `decodeFromConstraints` callback can
+  // still fire a real decode result *before* its own outer `await`
+  // resolves (ZXing appears to start its internal scan loop, and can
+  // report a match, before the promise wrapping it settles) — meaning the
+  // post-negotiation "was I superseded?" check below runs too late to
+  // stop a phantom scanner from already having called onDetect. With the
+  // fake-camera fixture (which shows a valid, decodable barcode from
+  // frame one), that phantom detection was firing on effectively every
+  // mount — it just didn't matter for flows with only one scan/detect
+  // cycle. The fix has to be *inside* the callback, not just after the
+  // await: check the token before acting on a result, not only before
+  // installing `controls`.
   const startIdRef = useRef(0)
 
   const stop = useCallback(() => {
@@ -88,12 +98,21 @@ export function useBarcodeScanner(onDetect: (code: string) => void) {
         videoRef.current,
         (result, _err, activeControls) => {
           if (result) {
-            log(
-              `decode callback fired a result for start() id ${startId} — ` +
-                `is it still the live scanner? current token=${startIdRef.current}, ` +
-                `controlsRef.current is these controls: ${controlsRef.current === activeControls}`,
-            )
+            // Always stop this specific scan loop on a match, live or not —
+            // no reason to keep decoding frames either way.
             activeControls.stop()
+            if (startId !== startIdRef.current) {
+              // This is a superseded (often StrictMode-phantom) scanner
+              // that found a match before it got torn down. It is not the
+              // scanner backing what's on screen right now — acting on
+              // this would fire onDetect (and drive step transitions)
+              // behind whatever UI actually replaced the camera view.
+              log(
+                `decode callback for superseded start() id ${startId} (current token ${startIdRef.current}) — discarding the detection`,
+              )
+              return
+            }
+            log(`decode callback fired a live result for start() id ${startId}`)
             controlsRef.current = null
             setStatus('idle')
             onDetectRef.current(result.getText())
