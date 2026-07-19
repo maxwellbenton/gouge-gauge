@@ -47,7 +47,7 @@ test('sale and bulk deals: a BOGO and a time-limited sale both rank correctly in
   await page.getByLabel('This is a sale price').check()
   const saleEndDate = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)
   await page.getByLabel('Sale ends (optional)').fill(saleEndDate)
-  await page.getByLabel('Price').fill('2')
+  await page.getByLabel('Price', { exact: true }).fill('2')
   await page.getByRole('button', { name: 'Save price' }).click()
 
   await expect(page.getByText('Widget — $2.00 at Sale Store')).toBeVisible()

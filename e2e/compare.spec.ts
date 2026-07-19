@@ -26,7 +26,7 @@ test('Compare tab: browse logged products by best price, and rank every store fo
   await page.getByRole('button', { name: 'Continue' }).click()
 
   await addNewStoreInline(page, 'Store One')
-  await page.getByLabel('Price').fill('20')
+  await page.getByLabel('Price', { exact: true }).fill('20')
   await page.getByRole('button', { name: 'Save price' }).click()
   await expect(page.getByRole('heading', { name: 'Saved' })).toBeVisible()
 
@@ -36,7 +36,7 @@ test('Compare tab: browse logged products by best price, and rank every store fo
   await page.getByRole('button', { name: 'Look up price' }).click()
 
   await addNewStoreInline(page, 'Store Two')
-  await page.getByLabel('Price').fill('18')
+  await page.getByLabel('Price', { exact: true }).fill('18')
   await page.getByRole('button', { name: 'Save price' }).click()
   await expect(page.getByText('Kibble Deluxe — $18.00 at Store Two')).toBeVisible()
 
@@ -51,7 +51,7 @@ test('Compare tab: browse logged products by best price, and rank every store fo
 
   // Store One already exists at this point, so this just picks it.
   await page.getByLabel('Store').selectOption({ label: 'Store One' })
-  await page.getByLabel('Price').fill('9.99')
+  await page.getByLabel('Price', { exact: true }).fill('9.99')
   await page.getByRole('button', { name: 'Save price' }).click()
   await expect(page.getByText('Chew Toy — $9.99 at Store One')).toBeVisible()
 

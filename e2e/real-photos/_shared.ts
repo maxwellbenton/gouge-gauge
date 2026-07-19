@@ -22,7 +22,7 @@ export function runDecodableFixtureTest(fixture: RealProductFixture) {
     await page.getByRole('button', { name: 'Continue' }).click()
 
     await addNewStoreInline(page, 'Test Store')
-    await page.getByLabel('Price').fill('9.99')
+    await page.getByLabel('Price', { exact: true }).fill('9.99')
     await page.getByRole('button', { name: 'Save price' }).click()
 
     await expect(page.getByRole('heading', { name: 'Saved' })).toBeVisible()
@@ -62,7 +62,7 @@ export function runUndecodableFixtureTest(fixture: RealProductFixture) {
     await page.getByRole('button', { name: 'Continue' }).click()
 
     await addNewStoreInline(page, 'Test Store')
-    await page.getByLabel('Price').fill('4.50')
+    await page.getByLabel('Price', { exact: true }).fill('4.50')
     await page.getByRole('button', { name: 'Save price' }).click()
 
     await expect(page.getByRole('heading', { name: 'Saved' })).toBeVisible()

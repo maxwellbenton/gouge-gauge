@@ -38,7 +38,7 @@ test.describe('Scan → price capture', () => {
 
     await addNewStoreInline(page, 'Tractor Supply')
 
-    await page.getByLabel('Price').fill('67')
+    await page.getByLabel('Price', { exact: true }).fill('67')
     await page.getByRole('button', { name: 'Save price' }).click()
 
     await expect(page.getByRole('heading', { name: 'Saved' })).toBeVisible()
@@ -70,7 +70,7 @@ test.describe('Scan → price capture', () => {
     await page.getByRole('button', { name: 'Continue' }).click()
 
     await addNewStoreInline(page, 'Tractor Supply')
-    await page.getByLabel('Price').fill('67')
+    await page.getByLabel('Price', { exact: true }).fill('67')
     await page.getByRole('button', { name: 'Save price' }).click()
     await expect(page.getByRole('heading', { name: 'Saved' })).toBeVisible()
 
@@ -93,7 +93,7 @@ test.describe('Scan → price capture', () => {
     await expect(page.getByText('$67.00')).toBeVisible()
 
     await addNewStoreInline(page, 'PetCo')
-    await page.getByLabel('Price').fill('74')
+    await page.getByLabel('Price', { exact: true }).fill('74')
     await page.getByRole('button', { name: 'Save price' }).click()
 
     await expect(page.getByText('Blue Buffalo Chicken Dog Food — $74.00 at PetCo')).toBeVisible()
