@@ -83,41 +83,46 @@ suite launches a separate browser per real-photo fixture (five extra
 launches), so it's slower than `scan.spec.ts` — inherent to testing against
 distinct per-product video rather than one shared fixture.
 
-## Known trade-off: the "Add store" click races its own handler
+## Postmortem: why "Save price" never reached "Saved" (three fixes, only the third was right)
 
-`e2e/helpers.ts` exports `addNewStoreInline()`, used everywhere a test drives
-StorePicker's inline "+ Add a new store" flow. This exists because of a real
-failure found by actually running the suite: clicking "Add store" fires an
-async handler (`createStore()` — an IndexedDB write — then `onChange(id)`),
-but Playwright's `.click()` resolves as soon as the click event dispatches,
-not once that handler finishes. Filling Price and clicking "Save price"
-immediately after "Add store" would sometimes race ahead of `onChange(id)`,
-so `storeId` was still `null` when Save ran — the app's own
-`if (!storeId) { setError(...); return }` guard then silently no-ops the
-save instead of erroring loudly, which is what made every camera/manual
-price-capture test fail at the same "Saved heading never appears" point the
-first time this actually ran against a browser. The helper waits for the
-"+ Add a new store" link to reappear (StorePicker only returns to that view
-in the same update that calls `onChange`) before letting a test continue —
-a real synchronization point, not a fixed sleep. Worth keeping regardless of
-the timeout note below: it's a real latent race, just not the whole story.
+The first real run of this suite (once someone could actually launch
+Chromium — see below) failed all 7 camera/price-entry tests at the same
+point: click "Save price", the "Saved" heading never shows up. Getting to
+the real cause took three attempts:
 
-## Known trade-off: the default 5s assertion timeout is tight under load
+1. **Real but incomplete: a click/async race.** Clicking StorePicker's
+   inline "Add store" fires an async handler (`createStore()`, an IndexedDB
+   write, then `onChange(id)`), but Playwright's `.click()` resolves on
+   event dispatch, not once that handler finishes. Filling Price and
+   clicking Save immediately after could race ahead of `onChange(id)`, so
+   `storeId` was sometimes still `null` when Save ran. `addNewStoreInline()`
+   in `e2e/helpers.ts` waits for the "+ Add a new store" link to reappear
+   (the real signal `onChange` fired) before continuing — worth keeping,
+   but the suite still failed the same way after this fix.
+2. **Wrong: assumed it was the default 5s assertion timeout.** Bumping
+   `expect.timeout` from 5s to 10s changed nothing — same 7 tests, same
+   exact failure point, every time. That was the tell it was never a
+   timing problem; a real bug doesn't get slower or faster with more
+   headroom.
+3. **The actual bug: a `<form>` nested inside a `<form>`.** Once browser
+   console errors were wired into the test output (`e2e/test-fixtures.ts`),
+   the real cause was right there: `StorePicker`'s inline "add store" UI
+   was a `<form>`, rendered inside `PriceEntryForm`'s own `<form>` — invalid
+   HTML, and React said so explicitly ("cannot contain a nested form").
+   Submit events bubble, so submitting the inner form (clicking "Add
+   store") also fired the *outer* form's `onSubmit` — PriceEntryForm's
+   `handleSubmit` — at that moment, with `storeId` and `price` both still
+   empty, hitting its own validation guard and quietly doing nothing
+   useful. By the time the real "Save price" click happened later, nothing
+   was structurally wrong anymore, but the form had already been left in a
+   confusing state. Fixed by making `StorePicker`'s inline form a plain
+   `<div>` with `type="button"` handlers instead of a second `<form>` (see
+   `StorePicker.tsx`).
 
-A second full local run (after the fix above) still failed the same way —
-but this time every failure said `Timeout: 5000ms`, while the surrounding
-test had 35+ of its 45s budget left unused. That's a different, narrower
-problem: Playwright's default timeout for an individual
-`expect(...).toBeVisible()` call is 5s, separate from the overall per-test
-`timeout` — bumping the latter (see above) didn't touch the former. Under
-heavy parallel load (this suite launches a real Chromium + fake camera
-device per worker, and `real-photos/` alone forces five extra browser
-processes — see below), a save-and-re-render can genuinely take longer than
-5s without anything being wrong; the app was working, just slower than the
-default assertion budget allowed for. `playwright.config.ts` now sets
-`expect.timeout: 10_000` globally to give that headroom. If it's still
-tight on a given machine, `--workers=N` (lower than the default) trades
-speed for headroom more directly than raising the timeout further.
+Lesson worth keeping in mind for future debugging here: a consistent,
+deterministic failure that doesn't budge when you add headroom is a real
+bug, not a timing issue — the console-error logging from step 3 is what
+actually should've been reached for first.
 
 ## Repo size
 
