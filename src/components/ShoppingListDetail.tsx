@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   addShoppingListItem,
@@ -26,16 +26,43 @@ export function ShoppingListDetail({ listId, onBack }: { listId: number; onBack:
   const [quantity, setQuantity] = useState('1')
   const [adding, setAdding] = useState(false)
 
+  // Temporary diagnostic logging (same pattern that found the CameraScanner
+  // StrictMode race — see e2e/README.md): a real Playwright run on a real
+  // machine hit a repro of "Add to list" staying disabled forever after
+  // adding a second item, which the sandbox here can't reproduce (no
+  // working Chromium). These forward to the Playwright test output via
+  // e2e/test-fixtures.ts's console listener on the next real run.
+  useEffect(() => {
+    console.debug('[ShoppingListDetail] mounted, listId=', listId)
+    return () => console.debug('[ShoppingListDetail] unmounted, listId=', listId)
+  }, [listId])
+
+  useEffect(() => {
+    console.debug('[ShoppingListDetail] productId state is now', JSON.stringify(productId))
+  }, [productId])
+
+  useEffect(() => {
+    console.debug('[ShoppingListDetail] items updated, count=', items?.length)
+  }, [items])
+
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault()
     const parsedProductId = Number(productId)
     const parsedQuantity = Number(quantity)
-    if (!parsedProductId || !Number.isInteger(parsedQuantity) || parsedQuantity < 1) return
+    console.debug('[ShoppingListDetail] handleAddItem submit — productId=', JSON.stringify(productId), 'quantity=', JSON.stringify(quantity))
+    if (!parsedProductId || !Number.isInteger(parsedQuantity) || parsedQuantity < 1) {
+      console.debug('[ShoppingListDetail] handleAddItem bailed on validation guard')
+      return
+    }
     setAdding(true)
     try {
-      await addShoppingListItem({ listId, productId: parsedProductId, quantity: parsedQuantity })
+      const itemId = await addShoppingListItem({ listId, productId: parsedProductId, quantity: parsedQuantity })
+      console.debug('[ShoppingListDetail] addShoppingListItem resolved, itemId=', itemId)
       setProductId('')
       setQuantity('1')
+    } catch (err) {
+      console.error('[ShoppingListDetail] addShoppingListItem threw', err)
+      throw err
     } finally {
       setAdding(false)
     }
@@ -149,7 +176,10 @@ export function ShoppingListDetail({ listId, onBack }: { listId: number; onBack:
           <select
             id="list-item-product"
             value={productId}
-            onChange={(e) => setProductId(e.target.value)}
+            onChange={(e) => {
+              console.debug('[ShoppingListDetail] Product select onChange fired, value=', JSON.stringify(e.target.value))
+              setProductId(e.target.value)
+            }}
           >
             <option value="" disabled>
               {products === undefined ? 'Loading…' : 'Select a product'}

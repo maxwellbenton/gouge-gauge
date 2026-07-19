@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import type { BrowserContext } from '@playwright/test'
 
@@ -26,8 +25,13 @@ export async function routeTesseractCdnToLocal(context: BrowserContext): Promise
       await route.abort()
       return
     }
-    const body = await readFile(localPath)
-    await route.fulfill({ status: 200, body })
+    // Fulfilling with `path` (not a manually-read `body`) lets Playwright
+    // infer the Content-Type from the file extension. This matters here:
+    // fulfilling worker.min.js with a raw body defaults to text/plain,
+    // which the browser's `importScripts()` rejects outright — surfaced as
+    // a generic "NetworkError: ...failed to load", not an obvious
+    // MIME-type complaint, which is what made this one worth a comment.
+    await route.fulfill({ status: 200, path: localPath })
   })
 }
 
