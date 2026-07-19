@@ -2,9 +2,17 @@ node_modules/
 dist/
 dist2/
 dist-ssr/
+dev-dist/
 .DS_Store
 *.local
 *.log
+
+# Playwright
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/
+.fixture-tmp/
 
 # Editor directories and files
 .vscode/*

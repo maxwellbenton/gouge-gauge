@@ -18,6 +18,9 @@ npm run lint        # oxlint
 npm run build       # typecheck + production build
 npm run preview     # serve the production build locally
 npm run test:smoke  # data-layer smoke test (fake-indexeddb)
+npm run test:e2e    # Playwright e2e (Chromium only — see e2e/README.md)
 ```
 
 Scanning needs camera access, so `npm run dev` is best tested on a phone: run it, then open the printed network URL on a phone on the same network (or use a tunnel like `ngrok`) — camera APIs generally require HTTPS or localhost, so a plain LAN IP over http may prompt for a permission Safari/Chrome won't grant. The manual barcode entry field works regardless.
+
+`npm run test:e2e` needs a Chromium binary the first time: `npx playwright install chromium`. It exercises the real scan flow, including a genuine camera-decode test against a fake video device — see `e2e/README.md` for how that's set up.

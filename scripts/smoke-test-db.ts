@@ -41,7 +41,7 @@ async function main() {
   // 2. Scanning the same barcode again should resolve to the same product —
   // this is the thing that lets M2's comparison view work at all.
   const lookedUp = await getProductByBarcode(barcode)
-  assert.ok(lookedUp, 'product should be findable by barcode')
+  if (!lookedUp) throw new Error('product should be findable by barcode')
   assert.equal(lookedUp.id, productId)
   assert.equal(lookedUp.name, 'Blue Buffalo Chicken Dog Food')
 
