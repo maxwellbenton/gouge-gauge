@@ -18,6 +18,7 @@ export function ScanPage() {
   const [step, setStep] = useState<Step>({ kind: 'scanning' })
 
   const handleDetected = async (barcode: string) => {
+    console.debug(`[ScanPage] handleDetected(${barcode}) — current step was ${step.kind}`)
     const existing = await getProductByBarcode(barcode)
     if (existing) {
       setStep({ kind: 'price-entry', product: existing })

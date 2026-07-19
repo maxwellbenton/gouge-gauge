@@ -13,6 +13,14 @@ import type { IScannerControls } from '@zxing/browser'
 
 export type ScannerStatus = 'idle' | 'starting' | 'scanning' | 'error'
 
+// Temporary-but-cheap lifecycle logging while chasing a scan/detect race
+// that survived one targeted fix already (see the startIdRef comment
+// below). console.debug rather than .error/.log so it doesn't read as an
+// actual problem; e2e/test-fixtures.ts forwards every console level to the
+// Playwright test output so this shows up there without attaching a
+// debugger.
+const log = (msg: string) => console.debug(`[scanner] ${msg}`)
+
 export function useBarcodeScanner(onDetect: (code: string) => void) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const controlsRef = useRef<IScannerControls | null>(null)
@@ -43,6 +51,7 @@ export function useBarcodeScanner(onDetect: (code: string) => void) {
 
   const stop = useCallback(() => {
     startIdRef.current += 1
+    log(`stop() called — token now ${startIdRef.current}, had live controls: ${!!controlsRef.current}`)
     controlsRef.current?.stop()
     controlsRef.current = null
     setStatus('idle')
@@ -53,6 +62,7 @@ export function useBarcodeScanner(onDetect: (code: string) => void) {
     setError(null)
     setStatus('starting')
     const startId = (startIdRef.current += 1)
+    log(`start() called — assigned id ${startId}`)
     try {
       const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([
         import('@zxing/browser'),
@@ -78,6 +88,11 @@ export function useBarcodeScanner(onDetect: (code: string) => void) {
         videoRef.current,
         (result, _err, activeControls) => {
           if (result) {
+            log(
+              `decode callback fired a result for start() id ${startId} — ` +
+                `is it still the live scanner? current token=${startIdRef.current}, ` +
+                `controlsRef.current is these controls: ${controlsRef.current === activeControls}`,
+            )
             activeControls.stop()
             controlsRef.current = null
             setStatus('idle')
@@ -87,10 +102,12 @@ export function useBarcodeScanner(onDetect: (code: string) => void) {
           // that fires continuously during normal scanning, so it's ignored.
         },
       )
+      log(`start() id ${startId} finished negotiating — current token is ${startIdRef.current}`)
       if (startId !== startIdRef.current) {
         // Superseded by a stop() (or another start()) while we were still
         // negotiating the camera — discard these controls immediately
         // instead of silently re-arming a scanner nobody asked for.
+        log(`start() id ${startId} was superseded — stopping the discarded controls`)
         controls.stop()
         return
       }

@@ -15,9 +15,14 @@ import { test as base, type Page } from '@playwright/test'
 export const test = base.extend<{ page: Page }>({
   page: async ({ page }, use) => {
     page.on('console', (msg) => {
-      if (msg.type() === 'error') {
-        console.log(`[browser console.error] ${msg.text()}`)
-      }
+      // Was error-only; widened to every console level while chasing the
+      // "Look up price" detachment on the third scan/detect cycle in
+      // scan.spec.ts — two targeted fixes based on reading the code didn't
+      // resolve it, and the scanner lifecycle logging added alongside this
+      // (see useBarcodeScanner.ts / ScanPage.tsx) is console.debug, not
+      // console.error, so it needs every level forwarded to actually show up
+      // here.
+      console.log(`[browser ${msg.type()}] ${msg.text()}`)
     })
     page.on('pageerror', (err) => {
       console.log(`[browser uncaught exception] ${err.message}\n${err.stack ?? ''}`)

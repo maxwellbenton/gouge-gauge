@@ -9,12 +9,16 @@ export function CameraScanner({ onDetect }: { onDetect: (barcode: string) => voi
   const scanner = useBarcodeScanner(onDetect)
 
   useEffect(() => {
+    console.debug(`[CameraScanner] effect run — manualMode=${manualMode}`)
     if (manualMode) {
       scanner.stop()
       return
     }
     scanner.start()
-    return () => scanner.stop()
+    return () => {
+      console.debug(`[CameraScanner] effect cleanup — manualMode was ${manualMode}`)
+      scanner.stop()
+    }
     // scanner.start/stop are stable (useCallback with no deps); re-run only
     // when the user flips manual/camera mode.
     // eslint-disable-next-line react-hooks/exhaustive-deps
