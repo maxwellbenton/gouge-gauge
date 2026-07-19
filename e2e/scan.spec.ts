@@ -89,7 +89,7 @@ test.describe('Scan → price capture', () => {
     // at another store should *immediately* surface that prior price, before
     // a store is even picked for this capture.
     await expect(page.getByText('Only price on file')).toBeVisible()
-    await expect(page.getByText('Tractor Supply')).toBeVisible()
+    await expect(page.getByRole('listitem').getByText('Tractor Supply')).toBeVisible()
     await expect(page.getByText('$67.00')).toBeVisible()
 
     await addNewStoreInline(page, 'PetCo')
