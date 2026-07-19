@@ -83,6 +83,28 @@ than driving the UI — see step 11 there for the full scenario (an
 expired-only store dropping out of the comparison entirely, and a store
 reverting to its last valid price once a newer sale on top of it expires).
 
+## Shopping lists (`lists.spec.ts`)
+
+Covers M4's exit criteria: log the same product at two stores (one
+cheaper), a second product at only one, build a list from both, and
+confirm the list is grouped by store — the cheaper store by default for
+the two-store product, its only known store for the other. Reassigns the
+two-store item to the pricier store via its per-item store `<select>`
+(`aria-label="Store for <product name>"`) and confirms the shown price
+updates to match — the override winning over the auto-cheapest default is
+the important behavior here, not just that a dropdown exists. Checks one
+item off and confirms both that item's own checkbox state and the
+purchased count back on the list-browser view ("1/2 bought") update.
+
+Like `compare.spec.ts` and `sale-bulk.spec.ts`, everything here goes
+through manual barcode entry — no camera involvement, no fixture videos.
+
+Duplicate-add behavior (adding an already-listed, not-yet-purchased
+product bumps its quantity instead of creating a second row) and list/item
+deletion are covered in `scripts/smoke-test-db.ts` (step 12) rather than
+here, for the same reason as expired-sale exclusion above: they're pure
+data-layer behavior that doesn't need a browser to verify.
+
 ## Real product photos (`e2e/real-photos/`)
 
 `scan.spec.ts` uses one synthetic, easy-to-read barcode. `e2e/real-photos/`

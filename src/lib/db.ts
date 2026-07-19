@@ -52,10 +52,37 @@ export interface PriceEntry {
   source: 'manual' | 'ocr'
 }
 
+export interface ShoppingList {
+  id: number
+  name: string
+  createdAt: number
+}
+
+export interface ShoppingListItem {
+  id: number
+  listId: number
+  productId: number
+  /** Explicit "buy this at X regardless of price" override. Undefined means
+   * "use whichever store currently has the cheapest known price" — computed
+   * live (see `listItemsForList`), not frozen at add-time, so the grouping
+   * stays current as new prices get logged. */
+  targetStoreId?: number
+  quantity: number
+  purchased: boolean
+  purchasedAt?: number
+  /** May differ from targetStoreId — captures "I know X was cheaper but I
+   * grabbed it at Y anyway." Set automatically to whatever store the item
+   * was grouped under at the moment it was checked off. */
+  purchasedStoreId?: number
+  createdAt: number
+}
+
 class GougeGaugeDB extends Dexie {
   products!: EntityTable<Product, 'id'>
   stores!: EntityTable<Store, 'id'>
   priceEntries!: EntityTable<PriceEntry, 'id'>
+  shoppingLists!: EntityTable<ShoppingList, 'id'>
+  shoppingListItems!: EntityTable<ShoppingListItem, 'id'>
 
   constructor() {
     super('gougegauge')
@@ -63,6 +90,8 @@ class GougeGaugeDB extends Dexie {
       products: '++id, &barcode, name',
       stores: '++id, name, lastUsedAt',
       priceEntries: '++id, productId, storeId, capturedAt, [productId+storeId]',
+      shoppingLists: '++id, name, createdAt',
+      shoppingListItems: '++id, listId, productId, purchased',
     })
   }
 }
@@ -211,6 +240,16 @@ export interface ProductSummary {
   bestEntry: EnrichedPriceEntry | null
 }
 
+/** The cheapest (by effective per-item price) of a set of already-enriched
+ * entries, or null if the list is empty. Shared by the Compare tab's
+ * best-price summary and shopping lists' default store assignment. */
+function cheapestEntry(entries: EnrichedPriceEntry[]): EnrichedPriceEntry | null {
+  return entries.reduce<EnrichedPriceEntry | null>(
+    (best, entry) => (!best || effectivePrice(entry) < effectivePrice(best) ? entry : best),
+    null,
+  )
+}
+
 /** All logged products with a quick "cheapest known price" summary, newest
  * product first. Powers the standalone Compare tab's browse list. */
 export async function listProductsWithBestPrice(): Promise<ProductSummary[]> {
@@ -232,11 +271,142 @@ export async function listProductsWithBestPrice(): Promise<ProductSummary[]> {
         const store = storeMap.get(entry.storeId)
         return store ? [{ ...entry, product, store }] : []
       })
-      const bestEntry = enriched.reduce<EnrichedPriceEntry | null>(
-        (best, entry) => (!best || effectivePrice(entry) < effectivePrice(best) ? entry : best),
-        null,
-      )
-      return { product, storeCount: enriched.length, bestEntry }
+      return { product, storeCount: enriched.length, bestEntry: cheapestEntry(enriched) }
     })
     .sort((a, b) => b.product.createdAt - a.product.createdAt)
+}
+
+// --- Shopping lists (M4) --------------------------------------------------
+// A list is just a name; the useful part is what each item resolves to.
+// `targetStoreId` on an item is an explicit pin — leave it unset and the
+// item follows whichever store is *currently* cheapest, recomputed on every
+// read, so a list built last week still reflects this week's prices unless
+// the user has deliberately overridden an item.
+
+export async function createShoppingList(name: string): Promise<number> {
+  return db.shoppingLists.add({ name, createdAt: Date.now() })
+}
+
+export async function deleteShoppingList(listId: number): Promise<void> {
+  await db.transaction('rw', db.shoppingLists, db.shoppingListItems, async () => {
+    await db.shoppingListItems.where('listId').equals(listId).delete()
+    await db.shoppingLists.delete(listId)
+  })
+}
+
+export interface ShoppingListWithCounts extends ShoppingList {
+  itemCount: number
+  purchasedCount: number
+}
+
+export async function listShoppingListsWithCounts(): Promise<ShoppingListWithCounts[]> {
+  const [lists, items] = await Promise.all([
+    db.shoppingLists.orderBy('createdAt').toArray(),
+    db.shoppingListItems.toArray(),
+  ])
+  const counts = new Map<number, { itemCount: number; purchasedCount: number }>()
+  for (const item of items) {
+    const c = counts.get(item.listId) ?? { itemCount: 0, purchasedCount: 0 }
+    c.itemCount += 1
+    if (item.purchased) c.purchasedCount += 1
+    counts.set(item.listId, c)
+  }
+  return lists.map((list) => ({
+    ...list,
+    ...(counts.get(list.id) ?? { itemCount: 0, purchasedCount: 0 }),
+  }))
+}
+
+/** Adds a product to a list, or — if it's already on there and not yet
+ * purchased — just bumps the existing row's quantity instead of creating a
+ * confusing duplicate. */
+export async function addShoppingListItem(input: {
+  listId: number
+  productId: number
+  quantity?: number
+}): Promise<number> {
+  const existing = await db.shoppingListItems
+    .where('listId')
+    .equals(input.listId)
+    .and((item) => item.productId === input.productId && !item.purchased)
+    .first()
+  if (existing) {
+    await db.shoppingListItems.update(existing.id, {
+      quantity: existing.quantity + (input.quantity ?? 1),
+    })
+    return existing.id
+  }
+  return db.shoppingListItems.add({
+    listId: input.listId,
+    productId: input.productId,
+    quantity: input.quantity ?? 1,
+    purchased: false,
+    createdAt: Date.now(),
+  })
+}
+
+export async function setShoppingListItemStore(
+  itemId: number,
+  storeId: number | undefined,
+): Promise<void> {
+  await db.shoppingListItems.update(itemId, { targetStoreId: storeId })
+}
+
+export async function setShoppingListItemPurchased(
+  itemId: number,
+  purchased: boolean,
+  purchasedStoreId: number | undefined,
+): Promise<void> {
+  await db.shoppingListItems.update(itemId, {
+    purchased,
+    purchasedAt: purchased ? Date.now() : undefined,
+    purchasedStoreId: purchased ? purchasedStoreId : undefined,
+  })
+}
+
+export async function deleteShoppingListItem(itemId: number): Promise<void> {
+  await db.shoppingListItems.delete(itemId)
+}
+
+export interface EnrichedShoppingListItem extends ShoppingListItem {
+  product: Product
+  /** The store this item is grouped under: the explicit override if set,
+   * otherwise whichever store currently has the cheapest known price.
+   * Undefined if there's no known price anywhere yet (and no override). */
+  effectiveStore: Store | undefined
+  /** Effective per-item price at `effectiveStore`, if known. */
+  effectivePrice: number | undefined
+}
+
+/** All items on a list, each resolved to the store (and price) it should
+ * currently be grouped under. Does one price-comparison lookup per item —
+ * fine for a local dataset and a list length a person would actually shop
+ * from in one trip. */
+export async function listItemsForList(listId: number): Promise<EnrichedShoppingListItem[]> {
+  const items = await db.shoppingListItems.where('listId').equals(listId).toArray()
+  const productIds = [...new Set(items.map((item) => item.productId))]
+  const products = await db.products.bulkGet(productIds)
+  const productMap = new Map(products.filter((p): p is Product => !!p).map((p) => [p.id, p]))
+
+  const enriched: EnrichedShoppingListItem[] = []
+  for (const item of items) {
+    const product = productMap.get(item.productId)
+    if (!product) continue
+    const comparison = await listLatestPriceEntriesForProduct(item.productId)
+
+    let effectiveStore: Store | undefined
+    let effectivePriceValue: number | undefined
+    if (item.targetStoreId !== undefined) {
+      const overrideEntry = comparison.find((entry) => entry.storeId === item.targetStoreId)
+      effectiveStore = overrideEntry?.store ?? (await db.stores.get(item.targetStoreId))
+      effectivePriceValue = overrideEntry ? effectivePrice(overrideEntry) : undefined
+    } else {
+      const cheapest = cheapestEntry(comparison)
+      effectiveStore = cheapest?.store
+      effectivePriceValue = cheapest ? effectivePrice(cheapest) : undefined
+    }
+
+    enriched.push({ ...item, product, effectiveStore, effectivePrice: effectivePriceValue })
+  }
+  return enriched
 }

@@ -20,6 +20,14 @@ import {
   listLatestPriceEntriesForProduct,
   listProductsWithBestPrice,
   updateProductSize,
+  createShoppingList,
+  addShoppingListItem,
+  listItemsForList,
+  listShoppingListsWithCounts,
+  setShoppingListItemStore,
+  setShoppingListItemPurchased,
+  deleteShoppingListItem,
+  deleteShoppingList,
 } from '../src/lib/db.ts'
 import { computeUnitPrice } from '../src/lib/unitPrice.ts'
 
@@ -230,6 +238,78 @@ async function main() {
     widgetSummary?.bestEntry && effectivePrice(widgetSummary.bestEntry),
     2,
     'best price should be the effective (per-item) price, not a raw deal total',
+  )
+
+  // 12. M4: shopping lists — the exit-criteria scenario ("build a 'dog
+  // supplies' list, see it grouped by store, reassign one item to a
+  // different store, check items off during a mock trip").
+  const listId = await createShoppingList('Dog supplies')
+  const gadgetId = await createProduct({ barcode: '999888777666', name: 'Unpriced Gadget' })
+
+  const widgetItemId = await addShoppingListItem({ listId, productId: widgetId, quantity: 2 })
+  await addShoppingListItem({ listId, productId: gadgetId, quantity: 1 })
+
+  let listItems = await listItemsForList(listId)
+  assert.equal(listItems.length, 2)
+  const widgetItem = listItems.find((i) => i.id === widgetItemId)!
+  const gadgetItem = listItems.find((i) => i.productId === gadgetId)!
+
+  // No override yet: Widget should default to whichever store is currently
+  // cheapest (Sale Store, from the M3 scenario above).
+  assert.equal(widgetItem.effectiveStore?.name, 'Sale Store')
+  assert.equal(widgetItem.effectivePrice, 2)
+  assert.equal(widgetItem.quantity, 2)
+  // A product with no price history at all has no effective store or price
+  // — it should show up in a "no price yet" group, not crash.
+  assert.equal(gadgetItem.effectiveStore, undefined)
+  assert.equal(gadgetItem.effectivePrice, undefined)
+
+  // Adding the same not-yet-purchased product again bumps quantity instead
+  // of creating a duplicate row.
+  await addShoppingListItem({ listId, productId: widgetId, quantity: 1 })
+  listItems = await listItemsForList(listId)
+  assert.equal(listItems.length, 2, 'adding an already-listed product should not create a duplicate row')
+  assert.equal(listItems.find((i) => i.id === widgetItemId)!.quantity, 3)
+
+  // Reassign Widget to Regular Store even though it's not the cheapest —
+  // the override should win over the auto-cheapest default.
+  await setShoppingListItemStore(widgetItemId, regularStoreId)
+  listItems = await listItemsForList(listId)
+  const reassignedWidget = listItems.find((i) => i.id === widgetItemId)!
+  assert.equal(reassignedWidget.effectiveStore?.name, 'Regular Store')
+  assert.equal(reassignedWidget.effectivePrice, 3, "should reflect Regular Store's price, not the cheapest")
+
+  // Check it off during a "mock trip" — purchasedStoreId should capture
+  // wherever it was actually grouped (Regular Store) at that moment.
+  await setShoppingListItemPurchased(widgetItemId, true, reassignedWidget.effectiveStore?.id)
+  listItems = await listItemsForList(listId)
+  const purchasedWidget = listItems.find((i) => i.id === widgetItemId)!
+  assert.equal(purchasedWidget.purchased, true)
+  assert.ok(purchasedWidget.purchasedAt !== undefined)
+  assert.equal(purchasedWidget.purchasedStoreId, regularStoreId)
+
+  const listSummaries = await listShoppingListsWithCounts()
+  const dogSuppliesSummary = listSummaries.find((l) => l.id === listId)
+  assert.equal(dogSuppliesSummary?.itemCount, 2)
+  assert.equal(dogSuppliesSummary?.purchasedCount, 1)
+
+  // Removing an item and deleting the whole list both clean up properly.
+  const gadgetItemId = gadgetItem.id
+  await deleteShoppingListItem(gadgetItemId)
+  listItems = await listItemsForList(listId)
+  assert.equal(listItems.length, 1, 'removed item should be gone')
+
+  await deleteShoppingList(listId)
+  const summariesAfterDelete = await listShoppingListsWithCounts()
+  assert.equal(
+    summariesAfterDelete.some((l) => l.id === listId),
+    false,
+    'deleted list should not show up in the list summary',
+  )
+  assert.equal(
+    await db.shoppingListItems.where('listId').equals(listId).count(),
+    0,
+    'deleting a list should cascade-delete its items',
   )
 
   console.log('✓ smoke test passed: capture, lookup, retrieval, and cross-store comparison all work as expected')
