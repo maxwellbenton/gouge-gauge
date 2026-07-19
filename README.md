@@ -7,7 +7,7 @@
 
 ## Status
 
-M0 and M1 done. You can scan a barcode (camera or manual entry), log a price against a store, and see it saved — all stored locally in IndexedDB, no backend yet. Compare (M2) and Lists (M4) are still placeholders. See the roadmap for what's next.
+M0, M1, and M2 done. You can scan a barcode (camera or manual entry), log a price against a store, and see it saved — all stored locally in IndexedDB, no backend yet. Scanning a barcode you've already logged immediately shows every store's latest price for it, ranked (unit price where a size is on file), cheapest highlighted — both inline on the Scan flow and via the standalone Compare tab, which lists every logged product with its best known price. Lists (M4) is still a placeholder. See the roadmap for what's next.
 
 ## Development
 

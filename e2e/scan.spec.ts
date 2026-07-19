@@ -85,11 +85,33 @@ test.describe('Scan → price capture', () => {
     await expect(page.getByLabel('Product name')).not.toBeVisible()
     await expect(page.getByText('Blue Buffalo Chicken Dog Food', { exact: false })).toBeVisible()
 
+    // M2 exit criteria: landing on price entry for a barcode already logged
+    // at another store should *immediately* surface that prior price, before
+    // a store is even picked for this capture.
+    await expect(page.getByText('Only price on file')).toBeVisible()
+    await expect(page.getByText('Tractor Supply')).toBeVisible()
+    await expect(page.getByText('$67.00')).toBeVisible()
+
     await addNewStoreInline(page, 'PetCo')
     await page.getByLabel('Price').fill('74')
     await page.getByRole('button', { name: 'Save price' }).click()
 
     await expect(page.getByText('Blue Buffalo Chicken Dog Food — $74.00 at PetCo')).toBeVisible()
+
+    // Scan the same barcode a third time: the comparison view should now
+    // rank both stores, with Tractor Supply — still the cheaper of the two
+    // — marked as the cheapest.
+    await page.getByRole('button', { name: 'Scan another' }).click()
+    await page.getByRole('button', { name: 'Enter barcode manually' }).click()
+    await page.getByLabel('Barcode number').fill(FIXTURE_BARCODE)
+    await page.getByRole('button', { name: 'Look up price' }).click()
+
+    await expect(page.getByText('Known prices — 2 stores')).toBeVisible()
+    const tractorSupplyComparisonRow = page.locator('li', { hasText: 'Tractor Supply' })
+    await expect(tractorSupplyComparisonRow.getByText('Cheapest')).toBeVisible()
+    await expect(tractorSupplyComparisonRow.getByText('$67.00')).toBeVisible()
+    await expect(page.locator('li', { hasText: 'PetCo' }).getByText('$74.00')).toBeVisible()
+    await page.getByRole('button', { name: 'Cancel' }).click()
 
     // Both stores should have picked up exactly one logged price each.
     await page.getByRole('link', { name: 'Stores' }).click()

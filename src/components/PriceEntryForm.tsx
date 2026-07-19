@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createPriceEntry, type Product } from '../lib/db'
+import { PriceComparison } from './PriceComparison'
 import { StorePicker } from './StorePicker'
 import formStyles from './Form.module.css'
 
@@ -58,6 +59,7 @@ export function PriceEntryForm({
         {product.brand ? ` — ${product.brand}` : ''}
         {product.sizeValue ? ` (${product.sizeValue} ${product.sizeUnit ?? ''})` : ''}
       </p>
+      <PriceComparison product={product} highlightStoreId={storeId} />
       <StorePicker value={storeId} onChange={setStoreId} />
       <div className={formStyles.field}>
         <label htmlFor="price-input">Price</label>

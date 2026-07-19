@@ -135,3 +135,83 @@ export async function listStoresWithCounts(): Promise<StoreWithCount[]> {
   }
   return stores.map((store) => ({ ...store, priceEntryCount: counts.get(store.id) ?? 0 }))
 }
+
+// --- Cross-store comparison (M2) ----------------------------------------
+// A store can have several PriceEntry rows for the same product over time
+// (the log is append-only). "Latest per store" collapses that history down
+// to "what does this store currently charge", which is what a shopper
+// standing in an aisle actually wants to compare — full price history is a
+// later concern (M3 sale tracking).
+
+function latestPerStore(entries: PriceEntry[]): PriceEntry[] {
+  const latestByStore = new Map<number, PriceEntry>()
+  for (const entry of entries) {
+    const existing = latestByStore.get(entry.storeId)
+    if (!existing || entry.capturedAt > existing.capturedAt) {
+      latestByStore.set(entry.storeId, entry)
+    }
+  }
+  return [...latestByStore.values()]
+}
+
+/** Latest known price per store for a product, joined with store data. */
+export async function listLatestPriceEntriesForProduct(
+  productId: number,
+): Promise<EnrichedPriceEntry[]> {
+  const product = await db.products.get(productId)
+  if (!product) return []
+  const entries = await db.priceEntries.where('productId').equals(productId).toArray()
+  const latest = latestPerStore(entries)
+  const stores = await db.stores.bulkGet(latest.map((entry) => entry.storeId))
+  const storeMap = new Map(stores.filter((s): s is Store => !!s).map((s) => [s.id, s]))
+  return latest.flatMap((entry) => {
+    const store = storeMap.get(entry.storeId)
+    return store ? [{ ...entry, product, store }] : []
+  })
+}
+
+export async function updateProductSize(
+  productId: number,
+  sizeValue: number,
+  sizeUnit: SizeUnit,
+): Promise<void> {
+  await db.products.update(productId, { sizeValue, sizeUnit })
+}
+
+export interface ProductSummary {
+  product: Product
+  /** Number of distinct stores with a known price for this product. */
+  storeCount: number
+  /** Cheapest of each store's latest price, or null if never priced. */
+  bestEntry: EnrichedPriceEntry | null
+}
+
+/** All logged products with a quick "cheapest known price" summary, newest
+ * product first. Powers the standalone Compare tab's browse list. */
+export async function listProductsWithBestPrice(): Promise<ProductSummary[]> {
+  const [products, entries, stores] = await Promise.all([
+    db.products.toArray(),
+    db.priceEntries.toArray(),
+    db.stores.toArray(),
+  ])
+  const storeMap = new Map(stores.map((store) => [store.id, store]))
+  const entriesByProduct = new Map<number, PriceEntry[]>()
+  for (const entry of entries) {
+    const list = entriesByProduct.get(entry.productId)
+    if (list) list.push(entry)
+    else entriesByProduct.set(entry.productId, [entry])
+  }
+  return products
+    .map((product) => {
+      const enriched = latestPerStore(entriesByProduct.get(product.id) ?? []).flatMap((entry) => {
+        const store = storeMap.get(entry.storeId)
+        return store ? [{ ...entry, product, store }] : []
+      })
+      const bestEntry = enriched.reduce<EnrichedPriceEntry | null>(
+        (best, entry) => (!best || entry.price < best.price ? entry : best),
+        null,
+      )
+      return { product, storeCount: enriched.length, bestEntry }
+    })
+    .sort((a, b) => b.product.createdAt - a.product.createdAt)
+}
