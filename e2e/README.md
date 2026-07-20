@@ -140,6 +140,33 @@ what jsdelivr would have served. This uses `context.route()`, not
 dedicated Web Worker, and only context-level routing sees worker-issued
 requests.
 
+## Screenshot import (`import-screenshot.spec.ts`)
+
+Covers M5.5: a genuinely different OCR shape from `ocr.spec.ts` — no
+barcode, so a screenshot has to yield both a likely product *name* and a
+price, and there's a match-against-existing-products step in between that
+the shelf-tag flow doesn't have. Reuses `e2e/fixtures/ocr/simple_clean.png`
+(already has a clean name-ish line and a single price, from the M5 spike)
+rather than adding a new fixture, and the same `routeTesseractCdnToLocal()`
+helper as `ocr.spec.ts`.
+
+One test drives the full loop:
+
+- Uploading the screenshot prefills both the Product name and Price fields;
+  the image's other OCR'd line is offered as an alternate rather than
+  discarded, same "never guess silently" principle as M5's multi-price
+  chips.
+- Continuing creates a new product and price entry — same store + price
+  form as everywhere else, with the Price field already holding what OCR
+  found on this screenshot (`PriceEntryForm`'s `initialPrice` prop) rather
+  than making the user re-scan a photo it already has.
+- Importing the *same* screenshot a second time surfaces the
+  now-already-logged product as a one-click "use this instead" option
+  instead of silently creating a duplicate — clicking it jumps straight
+  into price entry for the existing product, and the comparison list
+  showing its previously-logged price (not a fresh, empty one) is the
+  proof it's really the same product.
+
 ## Postmortem: "Add to list" stayed disabled forever on the second item
 
 `lists.spec.ts`'s first real-browser run (the sandbox this suite is

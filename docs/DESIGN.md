@@ -96,6 +96,8 @@ Preferred when available, per your notes, but treated as an enhancement layer ov
 
 If client-side OCR accuracy proves too low in testing, a cloud OCR fallback (Google Cloud Vision / AWS Textract) is a config-level swap, not an architecture change, since the extraction step is already isolated behind "give me a candidate price string."
 
+**Screenshot import (M5.5)** extends this to a second, barcode-free entry point: a screenshot of an online product page or cart has no barcode to establish the product first, so OCR has to surface a candidate *name* as well as a price, and the flow adds a name-based match step against products already on file before falling through to creation. Same rule as above — both fields are always a prefill the user confirms/edits, never an auto-commit. Products created this way have no real scanned barcode, so one is synthesized (`import:<uuid>`) purely to satisfy the schema's uniqueness constraint; it's never shown in the UI.
+
 ## 6. Sale Prices & Bulk Deals
 
 Handled as fields on `PriceEntry` rather than a separate concept:

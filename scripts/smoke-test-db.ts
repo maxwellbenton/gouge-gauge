@@ -28,8 +28,10 @@ import {
   setShoppingListItemPurchased,
   deleteShoppingListItem,
   deleteShoppingList,
+  createImportedProduct,
 } from '../src/lib/db.ts'
 import { computeUnitPrice } from '../src/lib/unitPrice.ts'
+import { extractNameCandidates, extractPriceCandidates } from '../src/lib/priceOcr.ts'
 
 async function main() {
   const barcode = '040232013408' // arbitrary UPC for the test
@@ -311,6 +313,27 @@ async function main() {
     0,
     'deleting a list should cascade-delete its items',
   )
+
+  // 13. M5.5: screenshot import — no barcode, so a synthetic one is
+  // generated, and it must never collide with a real scanned barcode or
+  // with another imported product's synthetic one.
+  const importedA = await createImportedProduct({ name: 'Imported Widget' })
+  const importedB = await createImportedProduct({ name: 'Another Imported Thing' })
+  assert.ok(importedA.barcode.startsWith('import:'), 'synthetic barcode should use the recognizable prefix')
+  assert.notEqual(importedA.barcode, importedB.barcode, 'two imports should never collide')
+  const rereadImportedA = await db.products.get(importedA.id)
+  assert.equal(rereadImportedA?.name, 'Imported Widget', 'the returned product should match what actually got written')
+
+  // Name-candidate extraction: a product-title-ish line should win over a
+  // pure price/rating line, and a price-only screenshot still yields no
+  // name candidates rather than crashing.
+  const screenshotText = 'In Stock\nBlue Buffalo Chicken Dog Food, 24 lb Bag\n4.5 out of 5 stars\n$67.00\nAdd to Cart'
+  const nameCandidates = extractNameCandidates(screenshotText)
+  assert.ok(nameCandidates.length > 0, 'should find at least one name candidate')
+  assert.equal(nameCandidates[0], 'Blue Buffalo Chicken Dog Food, 24 lb Bag', 'the product title line should rank first')
+  assert.equal(extractNameCandidates('$12.99\n$0.99/oz').length, 0, 'a price-only screenshot should yield no name candidates')
+  const screenshotPrices = extractPriceCandidates(screenshotText)
+  assert.deepEqual(screenshotPrices.map((c) => c.value), [67], 'should still find the price on the same screenshot')
 
   console.log('✓ smoke test passed: capture, lookup, retrieval, and cross-store comparison all work as expected')
 }

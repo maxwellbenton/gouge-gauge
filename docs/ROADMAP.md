@@ -66,13 +66,14 @@ Enhancement layer over manual entry, not a blocker for anything else. **Done** �
 
 ## M5.5 — Screenshot Import (Online Shopping Sites)
 
-Idea flagged after M5: uploaded screenshots from online shopping sites (product pages, cart views) are a different OCR case from a shelf-tag photo — no barcode to key off of, and instead of one price there's usually a product name, brand, and price all visible in the same image.
+Idea flagged after M5: uploaded screenshots from online shopping sites (product pages, cart views) are a different OCR case from a shelf-tag photo — no barcode to key off of, and instead of one price there's usually a product name, brand, and price all visible in the same image. **Done.**
 
-- Reuse `src/lib/priceOcr.ts`'s recognize-then-extract approach, but extend extraction beyond just price candidates to also pull a likely product name/brand line, since there's no barcode scan to establish the product first.
-- New entry point needed (separate from the barcode-first Scan flow) — probably an "Import from screenshot" action that goes screenshot → extracted product/price candidates → user picks/edits → matches or creates a `Product` → normal store + price entry from there.
+- `src/lib/priceOcr.ts` extended with `extractNameCandidates()` alongside the existing price extraction — a loose heuristic (filters out obvious price/rating/button-chrome lines, ranks what's left by length) that's always just a starting point the user can edit or override.
+- New entry point (`/import`, linked from the Scan page rather than a bottom-nav tab — see `ImportScreenshotPage.tsx`'s docstring): screenshot → OCR-extracted name + price candidates → user reviews/edits both → **live match against already-logged products by name**, so re-importing the same listing offers the existing `Product` instead of creating a duplicate → normal store + price entry from there (`PriceEntryForm`, now accepting an `initialPrice` prefill instead of re-running OCR on the same image).
+- Products with no scanned barcode get a synthesized one (`import:<uuid>`, see `createImportedProduct()` in `db.ts`) rather than loosening the schema's `barcode` uniqueness constraint — `barcode` is never rendered in the UI, so this never leaks out.
 - Same rule as M5: OCR only ever prefills, user always confirms before anything saves.
 
-**Exit criteria**: not yet built — this is a captured idea, not started. No code, data model, or UI work has begun.
+**Exit criteria**: met — screenshot upload → reviewable name/price prefill → match-or-create → normal price entry, covered by `scripts/smoke-test-db.ts` (synthetic-barcode uniqueness, name-candidate ranking) and `e2e/import-screenshot.spec.ts` (real OCR, full create-then-reuse flow).
 
 ## M6 — Accounts & Sync Backend
 

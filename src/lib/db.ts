@@ -114,6 +114,24 @@ export async function createProduct(
   return db.products.add({ ...input, createdAt: Date.now() })
 }
 
+/** Products imported from a screenshot (M5.5) have no real scanned
+ * barcode — but `barcode` is a required, unique field everywhere else in
+ * the schema (see `products: '++id, &barcode, name'` above), and every
+ * other lookup/comparison in the app assumes it's a real, non-empty
+ * string. Rather than loosen that constraint, synthesize a barcode with a
+ * recognizable, never-scannable prefix — keeps the schema and every
+ * existing barcode-keyed query untouched. `barcode` is never rendered in
+ * the UI, so the synthetic value never leaks out. */
+export async function createImportedProduct(
+  input: Omit<Product, 'id' | 'createdAt' | 'barcode'>,
+): Promise<Product> {
+  const barcode = `import:${crypto.randomUUID()}`
+  const id = await createProduct({ ...input, barcode })
+  const product = await db.products.get(id)
+  if (!product) throw new Error('Failed to read back the product that was just created')
+  return product
+}
+
 export async function createStore(
   input: Omit<Store, 'id' | 'createdAt' | 'lastUsedAt'>,
 ): Promise<number> {

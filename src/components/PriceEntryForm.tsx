@@ -14,15 +14,22 @@ type OcrStatus =
 
 export function PriceEntryForm({
   product,
+  initialPrice,
   onSaved,
   onCancel,
 }: {
   product: Product
+  /** Prefills the Price field — used by the screenshot-import flow (M5.5),
+   * which already ran OCR on the same image to extract this before the
+   * product existed, so there's no reason to make PriceEntryForm re-scan a
+   * photo it never received. Still just a prefill: the user can edit it,
+   * and still has to hit "Save price" like any other entry. */
+  initialPrice?: number
   onSaved: (storeId: number, price: number, opts?: { bulkQty?: number }) => void
   onCancel: () => void
 }) {
   const [storeId, setStoreId] = useState<number | null>(null)
-  const [price, setPrice] = useState('')
+  const [price, setPrice] = useState(initialPrice !== undefined ? String(initialPrice) : '')
   const [isBulk, setIsBulk] = useState(false)
   const [bulkQty, setBulkQty] = useState('')
   const [isSale, setIsSale] = useState(false)

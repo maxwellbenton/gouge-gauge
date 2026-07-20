@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { AppShell } from '../components/AppShell'
 import { CameraScanner } from '../components/CameraScanner'
 import { NewProductForm } from '../components/NewProductForm'
@@ -59,6 +60,9 @@ export function ScanPage() {
       {step.kind === 'scanning' && (
         <>
           <CameraScanner onDetect={handleDetected} />
+          <Link to="/import" className={formStyles.linkButton}>
+            Shopping online instead? Import from a screenshot
+          </Link>
           <h2>Recent captures</h2>
           <RecentCaptures />
         </>
