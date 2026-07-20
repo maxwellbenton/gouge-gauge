@@ -140,6 +140,44 @@ what jsdelivr would have served. This uses `context.route()`, not
 dedicated Web Worker, and only context-level routing sees worker-issued
 requests.
 
+## Postmortem: "Add to list" stayed disabled forever on the second item
+
+`lists.spec.ts`'s first real-browser run (the sandbox this suite is
+normally developed in can't launch Chromium — see "Running" below) hung
+adding the second item and timed out. Diagnostic lifecycle logging (same
+approach as the CameraScanner postmortems above) showed the actual
+sequence:
+
+```
+Product select onChange fired, value="1"   → productId="1" (Dog Food)
+handleAddItem submit — productId="1"        → first Add click; async write starts
+Product select onChange fired, value="2"   → test already selects Dog Treats
+addShoppingListItem resolved                → first write finally finishes
+productId state is now ""                   → success handler resets productId — wiping "2"
+```
+
+`ShoppingListDetail`'s add-item form only disabled the *submit button*
+while a save was in flight — the Product `<select>` and Quantity `<input>`
+stayed fully interactive. Playwright reliably selects the next product
+before the first `addShoppingListItem` write resolves; when that write's
+success handler ran, it unconditionally reset `productId`/`quantity`,
+clobbering whatever had already been chosen for the *next* add. Not
+purely a test-speed artifact either — the same race is reachable by a fast
+human clicking "Add to list" then immediately picking the next product.
+
+Fixed by capturing the submitted values before the `await` and only
+resetting each field if it still holds what was just submitted:
+
+```ts
+const submittedProductId = productId
+// ...
+await addShoppingListItem(...)
+setProductId((current) => (current === submittedProductId ? '' : current))
+```
+
+This preserves newer input instead of overwriting it — no need to disable
+the whole form during a save.
+
 ## Real product photos (`e2e/real-photos/`)
 
 `scan.spec.ts` uses one synthetic, easy-to-read barcode. `e2e/real-photos/`
