@@ -7,7 +7,10 @@ import { ImportScreenshotPage } from './pages/ImportScreenshotPage'
 
 function App() {
   return (
-    <BrowserRouter>
+    // BASE_URL reflects the `base` set in vite.config.ts — '/' locally,
+    // '/gougegauge/' for the GitHub Pages build — so routes resolve
+    // correctly under either.
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route path="/" element={<ScanPage />} />
         <Route path="/compare" element={<ComparePage />} />

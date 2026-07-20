@@ -98,6 +98,8 @@ Required infrastructure before any cross-user sharing is possible.
 - Offline resilience pass: confirm full capture/compare/list flow works with no connectivity, background sync resumes cleanly when back online.
 - Performance pass on camera/scan responsiveness (this is the most-used interaction in the app — worth extra attention).
 
+**Prerequisite done**: a real HTTPS URL to actually install from, via GitHub Pages — `.github/workflows/deploy.yml` builds and deploys on every push to `master`. See the README's Deployment section for one-time setup (creating the repo, pushing, enabling Pages). Everything above (icon/splash polish, offline resilience, performance) still needs real-device testing against that URL.
+
 **Exit criteria**: full core loop works offline on both an iOS and an Android device, installed from the browser.
 
 ## M9 — Beta & Launch

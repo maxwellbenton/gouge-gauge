@@ -2,8 +2,18 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// GitHub Pages serves project sites (as opposed to a <user>.github.io root
+// site) from a /<repo-name>/ subpath, not the domain root — every asset
+// reference, the PWA manifest's start_url/scope, and the router's basename
+// all need to agree on that prefix or the deployed build 404s on its own
+// assets. Set via an env var (rather than hardcoded) so `npm run dev` and
+// `npm run build` for local testing still serve from '/' — only the
+// GitHub Pages workflow sets BASE_PATH.
+const base = process.env.BASE_PATH ?? '/'
+
 // https://vite.dev/config/
 export default defineConfig({
+  base,
   plugins: [
     react(),
     VitePWA({
@@ -17,8 +27,8 @@ export default defineConfig({
         theme_color: '#7c3aed',
         background_color: '#16171d',
         display: 'standalone',
-        start_url: '/',
-        scope: '/',
+        start_url: base,
+        scope: base,
         icons: [
           {
             src: 'pwa-192.png',
