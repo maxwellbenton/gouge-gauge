@@ -2,9 +2,16 @@
 name: Build, Upload, and Deploy Artifact
 
 on:
-  # Runs on pushes targeting the default branch
+  # Runs on pushes targeting the default branch. "$default-branch" is a
+  # literal placeholder from GitHub's workflow template — it only gets
+  # substituted when the file is generated through the Pages setup UI's
+  # own "Configure" flow, not when copied/edited directly, and GitHub
+  # Actions doesn't do variable substitution in trigger filters at run
+  # time. Left as-is, this would never match a real push and future
+  # commits wouldn't auto-deploy (only a manual "Run workflow" dispatch
+  # would've gotten this repo's current deploy live at all).
   push:
-    branches: [$default-branch]
+    branches: [master]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -39,6 +46,23 @@ jobs:
         run: yarn install
       - name: Run build
         run: yarn build
+        env:
+          # GitHub Pages serves this as a project site (maxwellbenton.github.io/gouge-gauge/),
+          # not the domain root — vite.config.ts reads this to prefix every
+          # asset reference, the PWA manifest, and the router's basename to
+          # match. Without it, the build assumes root ('/'), which is why
+          # assets 404'd (and the module script got refused for a
+          # text/html MIME type — that 404 response body). Derived from the
+          # actual repo name so it stays correct if the repo is ever renamed.
+          BASE_PATH: /${{ github.event.repository.name }}/
+      - name: SPA fallback for direct navigation on GitHub Pages
+        # GitHub Pages is a static host with no server-side rewrites, so a
+        # hard refresh (or a shared link) on a client-side route like
+        # /compare would 404 — there's no compare/index.html file. Copying
+        # the app shell to 404.html is the standard workaround: GitHub
+        # Pages serves 404.html for any unmatched path, and since it's the
+        # same app shell, React Router renders the right route from there.
+        run: cp dist/index.html dist/404.html
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload dist folder as artifact
