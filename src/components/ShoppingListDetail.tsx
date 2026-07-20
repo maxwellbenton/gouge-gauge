@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   addShoppingListItem,
@@ -25,6 +25,47 @@ export function ShoppingListDetail({ listId, onBack }: { listId: number; onBack:
   const [productId, setProductId] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [adding, setAdding] = useState(false)
+
+  // The "purchased" checkbox is otherwise driven straight from `items`
+  // (the live query), with no local state of its own. Same class of bug as
+  // the Add-to-list race above, but sharper here: `checked` is a
+  // browser-controlled attribute, so the very next re-render for *any*
+  // reason (not just this write) reasserts the old `item.purchased` value
+  // and visibly snaps the checkbox back before the write + live-query
+  // round trip lands — caught by a real Playwright run, where `.check()`
+  // clicks once and immediately verifies, with no long retry budget for
+  // this kind of async gap. Tracking a per-item optimistic override here
+  // makes the checkbox reflect intent immediately; the effect below clears
+  // an override once the live data actually confirms it, so it never goes
+  // stale if the item is toggled again later.
+  const [pendingPurchased, setPendingPurchased] = useState<Record<number, boolean>>({})
+
+  useEffect(() => {
+    if (!items) return
+    setPendingPurchased((prev) => {
+      if (Object.keys(prev).length === 0) return prev
+      let changed = false
+      const next = { ...prev }
+      for (const item of items) {
+        if (item.id in next && next[item.id] === item.purchased) {
+          delete next[item.id]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [items])
+
+  const handleTogglePurchased = (item: EnrichedShoppingListItem, checked: boolean) => {
+    setPendingPurchased((prev) => ({ ...prev, [item.id]: checked }))
+    void setShoppingListItemPurchased(item.id, checked, item.effectiveStore?.id).catch((err) => {
+      console.error('Failed to update purchased state', err)
+      setPendingPurchased((prev) => {
+        const { [item.id]: _discard, ...rest } = prev
+        return rest
+      })
+    })
+  }
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -94,61 +135,58 @@ export function ShoppingListDetail({ listId, onBack }: { listId: number; onBack:
         <div key={groupName} className={styles.group}>
           <h3 className={styles.groupHeading}>{groupName}</h3>
           <ul className={styles.itemList}>
-            {groups.get(groupName)!.map((item) => (
-              <li
-                key={item.id}
-                className={item.purchased ? `${styles.item} ${styles.itemPurchased}` : styles.item}
-              >
-                <label className={styles.itemCheckLabel}>
-                  <input
-                    type="checkbox"
-                    checked={item.purchased}
-                    onChange={(e) =>
-                      void setShoppingListItemPurchased(
-                        item.id,
-                        e.target.checked,
-                        item.effectiveStore?.id,
-                      )
-                    }
-                  />
-                  <span className={styles.itemName}>
-                    {item.product.name}
-                    {item.quantity > 1 ? ` ×${item.quantity}` : ''}
-                  </span>
-                </label>
-                <div className={styles.itemMeta}>
-                  {item.effectivePrice !== undefined
-                    ? `$${item.effectivePrice.toFixed(2)} each`
-                    : 'No price logged yet'}
-                </div>
-                <div className={styles.itemActions}>
-                  <select
-                    aria-label={`Store for ${item.product.name}`}
-                    value={item.targetStoreId ?? ''}
-                    onChange={(e) =>
-                      void setShoppingListItemStore(
-                        item.id,
-                        e.target.value === '' ? undefined : Number(e.target.value),
-                      )
-                    }
-                  >
-                    <option value="">Cheapest available</option>
-                    {stores?.map((store) => (
-                      <option key={store.id} value={store.id}>
-                        {store.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className={formStyles.linkButton}
-                    onClick={() => void deleteShoppingListItem(item.id)}
-                  >
-                    Remove
-                  </button>
-                </div>
-              </li>
-            ))}
+            {groups.get(groupName)!.map((item) => {
+              const purchased = pendingPurchased[item.id] ?? item.purchased
+              return (
+                <li
+                  key={item.id}
+                  className={purchased ? `${styles.item} ${styles.itemPurchased}` : styles.item}
+                >
+                  <label className={styles.itemCheckLabel}>
+                    <input
+                      type="checkbox"
+                      checked={purchased}
+                      onChange={(e) => handleTogglePurchased(item, e.target.checked)}
+                    />
+                    <span className={styles.itemName}>
+                      {item.product.name}
+                      {item.quantity > 1 ? ` ×${item.quantity}` : ''}
+                    </span>
+                  </label>
+                  <div className={styles.itemMeta}>
+                    {item.effectivePrice !== undefined
+                      ? `$${item.effectivePrice.toFixed(2)} each`
+                      : 'No price logged yet'}
+                  </div>
+                  <div className={styles.itemActions}>
+                    <select
+                      aria-label={`Store for ${item.product.name}`}
+                      value={item.targetStoreId ?? ''}
+                      onChange={(e) =>
+                        void setShoppingListItemStore(
+                          item.id,
+                          e.target.value === '' ? undefined : Number(e.target.value),
+                        )
+                      }
+                    >
+                      <option value="">Cheapest available</option>
+                      {stores?.map((store) => (
+                        <option key={store.id} value={store.id}>
+                          {store.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className={formStyles.linkButton}
+                      onClick={() => void deleteShoppingListItem(item.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         </div>
       ))}

@@ -178,6 +178,34 @@ setProductId((current) => (current === submittedProductId ? '' : current))
 This preserves newer input instead of overwriting it — no need to disable
 the whole form during a save.
 
+## Postmortem: the purchased checkbox visibly un-checked itself
+
+Fixing the race above got `lists.spec.ts` past adding both items, but it
+then failed a step further in: `.check()` on the "Dog Treats" row's
+purchased checkbox clicked once and reported "Clicking the checkbox did
+not change its state." Unlike the earlier races in this file, Playwright's
+`.check()` doesn't get a long retry budget for the post-click state check —
+it verifies close to immediately, which is exactly what exposed this one.
+
+Same underlying class of bug as the Add-to-list race, but sharper: the
+checkbox's `checked` prop was bound directly to `item.purchased` from the
+live query, with nothing local reflecting the click's intent. A checkbox's
+`checked` attribute is browser-controlled, so *any* re-render before the
+write + live-query round trip lands — not even necessarily one caused by
+this write — reasserts the old (still-false) value and visibly snaps the
+box back unchecked. A text field wouldn't show this as starkly since
+nothing forces its value back except the specific completion handler that
+already owns it; a controlled checkbox with no local state gets stomped by
+the next unrelated re-render too.
+
+Fixed with a small optimistic-update layer in `ShoppingListDetail`: a
+`pendingPurchased` map keyed by item id, set synchronously in the
+checkbox's `onChange` before the async write starts, read as `checked`'s
+value in place of `item.purchased` directly. An effect clears an item's
+entry once the live query confirms it (so it can't go stale on a later
+toggle), and the write's `.catch()` clears it immediately on failure so
+the box doesn't lie about a save that didn't happen.
+
 ## Real product photos (`e2e/real-photos/`)
 
 `scan.spec.ts` uses one synthetic, easy-to-read barcode. `e2e/real-photos/`
