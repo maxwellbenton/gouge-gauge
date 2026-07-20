@@ -1,67 +1,68 @@
-name: Deploy to GitHub Pages
+# Simple workflow for deploying static content to GitHub Pages
+name: Build, Upload, and Deploy Artifact
 
 on:
+  # Runs on pushes targeting the default branch
   push:
-    branches: [main, master]
-  # Lets you trigger a redeploy from the Actions tab without an empty commit.
+    branches: [$default-branch]
+
+  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Only one deploy at a time; a new push cancels an in-flight one rather than
-# queuing behind it, since only the latest commit's build is worth serving.
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
-      - run: npm ci
-
-      - name: Build (GitHub Pages base path)
-        run: npm run build
-        env:
-          # GitHub Pages serves a project site (this repo isn't a
-          # <user>.github.io root repo) from /<repo-name>/, not the domain
-          # root — vite.config.ts reads this to prefix every asset
-          # reference, the PWA manifest, and the router's basename to
-          # match. See vite.config.ts's comment on `base` for the full
-          # explanation.
-          BASE_PATH: /${{ github.event.repository.name }}/
-
-      - name: SPA fallback for direct navigation on GitHub Pages
-        # GitHub Pages is a static host with no server-side rewrites, so a
-        # hard refresh (or a shared link) on a client-side route like
-        # /compare 404s — there's no compare/index.html file. Copying the
-        # app shell to 404.html is the standard workaround: GitHub Pages
-        # serves 404.html for any unmatched path, and since it's the same
-        # app shell, React Router then renders the right route client-side.
-        run: cp dist/index.html dist/404.html
-
-      - uses: actions/configure-pages@v5
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
     steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: 'npm'
+      - name: Install dependencies
+        run: yarn install
+      - name: Run build
+        run: yarn build
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload dist folder as artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          name: github-pages
+          path: './dist'
+  deploy:
+    # Add a dependency to the build job
+    needs: build
+
+    # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
+    permissions:
+      pages: write      # to deploy to Pages
+      id-token: write   # to verify the deployment originates from an appropriate source
+
+    # Deploy to the github-pages environment
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    # Specify runner + deployment step
+    runs-on: ubuntu-latest
+    steps:
+       - name: Deploy to GitHub Pages
+         id: deployment
+         uses: actions/deploy-pages@v4
