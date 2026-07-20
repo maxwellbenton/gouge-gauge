@@ -56,8 +56,11 @@ test('Screenshot import: OCR prefills name + price, and reusing the same screens
 
   // Jumped straight into price entry for the *existing* product — its
   // already-known price at Web Store is right there in the comparison,
-  // proving this is the same product, not a fresh one.
-  await expect(page.getByText('Web Store')).toBeVisible()
+  // proving this is the same product, not a fresh one. Scoped to the
+  // comparison list item specifically — "Web Store" is also a plain-text
+  // option in the store picker's <select> below it, and getByText matches
+  // both (same substring-match gotcha documented elsewhere in this file).
+  await expect(page.locator('li', { hasText: 'Web Store' })).toBeVisible()
   await addNewStoreInline(page, 'App Store')
   await page.getByRole('button', { name: 'Save price' }).click()
   await expect(page.getByText('STORE BRAND KIBBLE — $12.99 at App Store')).toBeVisible()
