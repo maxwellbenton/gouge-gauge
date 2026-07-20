@@ -27,17 +27,8 @@ Scanning needs camera access, so `npm run dev` is best tested on a phone: run it
 
 ## Deployment
 
-Deployed to GitHub Pages via `.github/workflows/deploy.yml` — every push to `master` builds and publishes automatically. GitHub Pages is a plain static host, which is enough here since there's no backend yet (everything's local IndexedDB); it also serves over HTTPS, which real device testing needs anyway — camera access and PWA installability both require it (a plain `http://` LAN IP won't get either).
+Live at **https://maxwellbenton.github.io/gouge-gauge/**. Deployed via `.github/workflows/deploy.yml` — every push to `main` builds and publishes automatically (GitHub Settings → Pages → Source is set to **GitHub Actions**). GitHub Pages is a plain static host, which is enough here since there's no backend yet (everything's local IndexedDB); it also serves over HTTPS, which real device testing needs anyway — camera access and PWA installability both require it (a plain `http://` LAN IP won't get either).
 
-**One-time setup**, once this repo exists on GitHub:
-
-```
-git remote add origin git@github.com:<you>/gougegauge.git   # or the https:// URL
-git push -u origin master
-```
-
-Then in the repo's GitHub Settings → Pages, set **Source** to **GitHub Actions** (not the legacy "Deploy from a branch" option — that one won't run the workflow). The first push after that kicks off a deploy; check the Actions tab for progress, and the same Pages settings page for the live URL once it finishes (`https://<you>.github.io/<repo-name>/`).
-
-From then on, `git push` to `master` is all that's needed — no separate deploy step. On your phone: open that URL, then use the browser's "Add to Home Screen" (Safari) or the install prompt (Chrome) to install it.
+Nothing else to do for a normal update — `git push` to `main` is the whole deploy step. On your phone: open the URL above, then use the browser's "Add to Home Screen" (Safari) or the install prompt (Chrome) to install it.
 
 The build's `base` path (so assets resolve correctly under `/<repo-name>/` rather than the domain root) is set automatically from the repo name during the GitHub Actions build — nothing to configure by hand, and `npm run build` locally is unaffected (still builds for `/`).

@@ -11,7 +11,7 @@ on:
   # commits wouldn't auto-deploy (only a manual "Run workflow" dispatch
   # would've gotten this repo's current deploy live at all).
   push:
-    branches: [master]
+    branches: [main]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
